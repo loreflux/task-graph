@@ -19,7 +19,7 @@ export function TodayView({ initialTasks, initialRelations }: TodayViewProps) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [relations, setRelations] = useState<TaskRelation[]>(initialRelations);
 
-  const refresh = async () => {
+  const refresh = React.useCallback(async () => {
     try {
       const [ts, rs] = await Promise.all([
         dataAdapter.getTasks({ includeArchived: false }),
@@ -30,21 +30,23 @@ export function TodayView({ initialTasks, initialRelations }: TodayViewProps) {
     } catch (err) {
       console.error('Failed to refresh tasks:', err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
-  // Compute blocked IDs using pure algorithm
-  const completedIds = new Set(
-    tasks.filter((t) => t.status === 'DONE').map((t) => t.id),
-  );
-  const adj = new Map<string, string[]>();
-  for (const t of tasks) adj.set(t.id, []);
-  for (const r of relations) adj.get(r.sourceTaskId)?.push(r.targetTaskId);
-  const blockedAnalyses = getBlockedTasks(adj, completedIds);
-  const blockedIds = new Set(blockedAnalyses.map((b) => b.taskId));
+  // Compute blocked IDs using pure algorithm (memoized to avoid unneeded child re-renders)
+  const blockedIds = React.useMemo(() => {
+    const completedIds = new Set(
+      tasks.filter((t) => t.status === 'DONE').map((t) => t.id),
+    );
+    const adj = new Map<string, string[]>();
+    for (const t of tasks) adj.set(t.id, []);
+    for (const r of relations) adj.get(r.sourceTaskId)?.push(r.targetTaskId);
+    const blockedAnalyses = getBlockedTasks(adj, completedIds);
+    return new Set(blockedAnalyses.map((b) => b.taskId));
+  }, [tasks, relations]);
 
   if (currentView === 'graph') {
     return (

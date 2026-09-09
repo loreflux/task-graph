@@ -90,6 +90,8 @@ function saveColors(colors: Record<string, string>) {
   } catch {}
 }
 
+const EMPTY_ID_SET = new Set<string>();
+
 interface TaskGraphViewProps {
   tasks: Task[];
   relations: TaskRelation[];
@@ -100,7 +102,7 @@ interface TaskGraphViewProps {
 function TaskGraphFlow({
   tasks,
   relations,
-  blockedTaskIds = new Set(),
+  blockedTaskIds = EMPTY_ID_SET,
   onRefresh,
 }: TaskGraphViewProps) {
   const { openDrawer } = useUIStore();
@@ -117,7 +119,7 @@ function TaskGraphFlow({
 
   // Canvas search state
   const [searchOpen, setSearchOpen] = useState(false);
-  const [matchedNodeIds, setMatchedNodeIds] = useState<Set<string>>(new Set());
+  const [matchedNodeIds, setMatchedNodeIds] = useState<Set<string>>(EMPTY_ID_SET);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
 
   // Export diagram dialog state
@@ -678,35 +680,19 @@ function TaskGraphFlow({
       }
 
       return initialNodes.map((n) => {
-        const customColor = nodeColors[n.id];
-        const isSearchMatched = searchOpen && matchedNodeIds.has(n.id);
-        const isSearchFocused = searchOpen && focusedNodeId === n.id;
-        const searchActive = searchOpen && matchedNodeIds.size > 0;
-
-        const baseNode = {
-          ...n,
-          data: {
-            ...n.data,
-            customColor,
-            isSearchMatched,
-            isSearchFocused,
-            searchActive,
-          },
-        };
-
         // If user explicitly enabled auto layout on data change, take newly computed layout
         if (settings.autoLayoutOnDataChange) {
-          return baseNode;
+          return n;
         }
         // Otherwise, preserve user dragged/custom coordinates
         const saved = currentPosMap.get(n.id) || savedPositions[n.id];
         if (saved) {
           return {
-            ...baseNode,
+            ...n,
             position: saved,
           };
         }
-        return baseNode;
+        return n;
       }) as Node[];
     });
 
@@ -733,47 +719,41 @@ function TaskGraphFlow({
     settings.autoLayoutOnDataChange,
     relations,
     tasks,
-    nodeColors,
-    searchOpen,
-    matchedNodeIds,
-    focusedNodeId,
     handleDeleteEdge,
     setNodes,
     setEdges,
   ]);
 
-  // Sync dynamic node styling (custom colors, search highlights)
-  useEffect(() => {
-    setNodes((currentNodes) =>
-      currentNodes.map((n) => {
-        const customColor = nodeColors[n.id];
-        const isSearchMatched = searchOpen && matchedNodeIds.has(n.id);
-        const isSearchFocused = searchOpen && focusedNodeId === n.id;
-        const searchActive = searchOpen && matchedNodeIds.size > 0;
+  // Dynamically decorate nodes for ReactFlow with color coding and search highlights without triggering setState cycles
+  const decoratedNodes = useMemo(() => {
+    const searchActive = searchOpen && matchedNodeIds.size > 0;
+    return nodes.map((n) => {
+      const customColor = nodeColors[n.id];
+      const isSearchMatched = searchOpen && matchedNodeIds.has(n.id);
+      const isSearchFocused = searchOpen && focusedNodeId === n.id;
 
-        const currentData = n.data as any;
-        if (
-          currentData?.customColor === customColor &&
-          currentData?.isSearchMatched === isSearchMatched &&
-          currentData?.isSearchFocused === isSearchFocused &&
-          currentData?.searchActive === searchActive
-        ) {
-          return n;
-        }
+      const currentData = n.data as any;
+      if (
+        currentData?.customColor === customColor &&
+        currentData?.isSearchMatched === isSearchMatched &&
+        currentData?.isSearchFocused === isSearchFocused &&
+        currentData?.searchActive === searchActive
+      ) {
+        return n;
+      }
 
-        return {
-          ...n,
-          data: {
-            ...n.data,
-            customColor,
-            isSearchMatched,
-            isSearchFocused,
-            searchActive,
-          },
-        };
-      }),
-    );
-  }, [nodeColors, searchOpen, matchedNodeIds, focusedNodeId, setNodes]);
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          customColor,
+          isSearchMatched,
+          isSearchFocused,
+          searchActive,
+        },
+      };
+    });
+  }, [nodes, nodeColors, searchOpen, matchedNodeIds, focusedNodeId]);
 
   // 4. Handle connecting a new dependency edge
   const onConnect = useCallback(
@@ -927,18 +907,8 @@ function TaskGraphFlow({
       criticalNodeIds,
       criticalEdgeIds,
     );
-    const decoratedNodes = (layout.nodes as Node[]).map((n) => ({
-      ...n,
-      data: {
-        ...n.data,
-        customColor: nodeColors[n.id],
-        isSearchMatched: searchOpen && matchedNodeIds.has(n.id),
-        isSearchFocused: searchOpen && focusedNodeId === n.id,
-        searchActive: searchOpen && matchedNodeIds.size > 0,
-      },
-    }));
-    setNodes(decoratedNodes);
-    savePositions(decoratedNodes);
+    setNodes(layout.nodes as Node[]);
+    savePositions(layout.nodes as Node[]);
 
     const customEdges = layout.edges.map((e) => {
       const rel = relations.find((r) => r.id === e.id);
@@ -990,10 +960,6 @@ function TaskGraphFlow({
     criticalEdgeIds,
     nodes,
     tasks,
-    nodeColors,
-    searchOpen,
-    matchedNodeIds,
-    focusedNodeId,
     handleDeleteEdge,
     pushAction,
     setNodes,
@@ -1094,18 +1060,35 @@ function TaskGraphFlow({
     }
   };
 
+  // Keep latest nodes in a ref so callbacks don't recreate on every drag/position change
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+
   // 10. Canvas quick search callbacks
   const handleHighlightNodes = useCallback(
     (matchedIds: Set<string>, focusedId: string | null) => {
-      setMatchedNodeIds(matchedIds);
-      setFocusedNodeId(focusedId);
+      setMatchedNodeIds((prev) => {
+        if (prev.size === 0 && matchedIds.size === 0) return prev;
+        if (prev.size === matchedIds.size) {
+          let same = true;
+          for (const id of matchedIds) {
+            if (!prev.has(id)) {
+              same = false;
+              break;
+            }
+          }
+          if (same) return prev;
+        }
+        return matchedIds;
+      });
+      setFocusedNodeId((prev) => (prev === focusedId ? prev : focusedId));
     },
     [],
   );
 
   const handleFocusNode = useCallback(
     (taskId: string) => {
-      const targetNode = nodes.find((n) => n.id === taskId);
+      const targetNode = nodesRef.current.find((n) => n.id === taskId);
       if (targetNode) {
         setCenter(targetNode.position.x + 140, targetNode.position.y + 60, {
           duration: 350,
@@ -1113,8 +1096,14 @@ function TaskGraphFlow({
         });
       }
     },
-    [nodes, setCenter],
+    [setCenter],
   );
+
+  const handleCloseSearch = useCallback(() => {
+    setSearchOpen(false);
+    setMatchedNodeIds(EMPTY_ID_SET);
+    setFocusedNodeId(null);
+  }, []);
 
   // 11. Color coding action with undo
   const handleSetNodeColor = useCallback(
@@ -1236,7 +1225,7 @@ function TaskGraphFlow({
   return (
     <div className="relative h-full w-full bg-zinc-950">
       <ReactFlow
-        nodes={nodes}
+        nodes={decoratedNodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -1314,7 +1303,7 @@ function TaskGraphFlow({
       {/* Floating Canvas Quick Search Bar (Ctrl+F) */}
       <GraphSearchBar
         open={searchOpen}
-        onClose={() => setSearchOpen(false)}
+        onClose={handleCloseSearch}
         tasks={tasks}
         onHighlightNodes={handleHighlightNodes}
         onFocusNode={handleFocusNode}

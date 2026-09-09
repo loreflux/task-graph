@@ -12,6 +12,8 @@ interface GraphSearchBarProps {
   onFocusNode: (taskId: string) => void;
 }
 
+const EMPTY_SET = new Set<string>();
+
 export function GraphSearchBar({
   open,
   onClose,
@@ -34,10 +36,25 @@ export function GraphSearchBar({
     );
   }, [query, tasks]);
 
+  // Focus input when opened; reset when closed
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }, 50);
+    } else {
+      setQuery('');
+      setCurrentIndex(0);
+    }
+  }, [open]);
+
   // Sync highlights to parent whenever query or index changes
   useEffect(() => {
-    if (!open || !query.trim()) {
-      onHighlightNodes(new Set(), null);
+    if (!open) return;
+
+    if (!query.trim() || matchedTasks.length === 0) {
+      onHighlightNodes(EMPTY_SET, null);
       return;
     }
 
@@ -49,20 +66,6 @@ export function GraphSearchBar({
       onFocusNode(focusedTask.id);
     }
   }, [open, query, currentIndex, matchedTasks, onHighlightNodes, onFocusNode]);
-
-  // Focus input when opened
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      }, 50);
-    } else {
-      setQuery('');
-      setCurrentIndex(0);
-      onHighlightNodes(new Set(), null);
-    }
-  }, [open, onHighlightNodes]);
 
   // Keyboard navigation inside search
   const handleKeyDown = (e: React.KeyboardEvent) => {
