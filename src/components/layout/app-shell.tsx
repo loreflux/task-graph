@@ -6,6 +6,7 @@ import { Header } from './header';
 import { DetailDrawer } from './detail-drawer';
 import { CommandPalette } from '@/components/command-palette';
 import { DeadlineReminderManager } from '@/components/notification/deadline-reminder';
+import { PluginModalContainer } from '@/components/plugins/plugin-modal-container';
 import { useUIStore } from '@/stores/ui-store';
 
 interface AppShellProps {
@@ -121,6 +122,9 @@ export function AppShell({
 
       {/* Proactive Task Deadline Reminder Background Manager */}
       <DeadlineReminderManager />
+
+      {/* Global Plugin Modal Container for Interactive Plugins */}
+      <PluginModalContainer onRefresh={onRefresh} />
     </div>
   );
 }

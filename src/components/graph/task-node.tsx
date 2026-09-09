@@ -5,12 +5,13 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { Task } from '@/types';
 import { TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from '@/lib/constants';
 import { formatDateTime } from '@/lib/utils';
-import { CheckCircle2, Circle, Clock, Lock, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, Lock, AlertCircle, Zap } from 'lucide-react';
 
 interface TaskNodeData {
   task: Task;
   isBlocked?: boolean;
   directBlockers?: string[];
+  isCriticalPath?: boolean;
 }
 
 export const TaskNode = memo(({ data, selected }: NodeProps) => {
@@ -19,13 +20,16 @@ export const TaskNode = memo(({ data, selected }: NodeProps) => {
   const isBlocked = nodeData?.isBlocked || task?.status === 'BLOCKED';
   const isDone = task?.status === 'DONE';
   const inProgress = task?.status === 'IN_PROGRESS';
+  const isCritical = nodeData?.isCriticalPath;
 
   if (!task) return null;
 
   return (
     <div
       className={`relative w-[280px] rounded-xl border bg-zinc-900/95 p-3.5 shadow-lg backdrop-blur transition-all duration-200 ${
-        selected
+        isCritical
+          ? 'border-amber-400/90 ring-2 ring-amber-400/50 shadow-[0_0_20px_rgba(245,158,11,0.3)] bg-gradient-to-b from-amber-950/20 to-zinc-900'
+          : selected
           ? 'border-blue-500 ring-2 ring-blue-500/30'
           : isBlocked
           ? 'border-red-500/60 bg-red-950/10'
@@ -46,6 +50,12 @@ export const TaskNode = memo(({ data, selected }: NodeProps) => {
       {/* Header: Status and Priority */}
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
+          {isCritical && (
+            <span className="flex items-center gap-0.5 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+              <Zap className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+              <span>关键</span>
+            </span>
+          )}
           {isDone ? (
             <CheckCircle2 className="h-4 w-4 text-green-500" />
           ) : isBlocked ? (

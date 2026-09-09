@@ -8,7 +8,6 @@ import {
   Lock,
   EyeOff,
   Eye,
-  Plus,
 } from 'lucide-react';
 
 interface GraphToolbarProps {
@@ -20,7 +19,6 @@ interface GraphToolbarProps {
   onToggleBlockedOnly: () => void;
   hideCompleted: boolean;
   onToggleHideCompleted: () => void;
-  onCreateTask: () => void;
 }
 
 export function GraphToolbar({
@@ -32,19 +30,9 @@ export function GraphToolbar({
   onToggleBlockedOnly,
   hideCompleted,
   onToggleHideCompleted,
-  onCreateTask,
 }: GraphToolbarProps) {
   return (
     <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/90 p-1.5 shadow-xl backdrop-blur">
-      <button
-        onClick={onCreateTask}
-        className="flex items-center gap-1.5 rounded-md bg-zinc-100 px-2.5 py-1.5 text-xs font-medium text-zinc-900 transition hover:bg-zinc-200"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        <span>添加节点</span>
-      </button>
-
-      <div className="mx-1 h-4 w-px bg-zinc-800" />
 
       <button
         onClick={onAutoLayout}

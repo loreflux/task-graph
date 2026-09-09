@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Settings,
   X,
+  Blocks,
 } from 'lucide-react';
 import { dataAdapter } from '@/lib/storage/data-adapter';
 import type { Project } from '@/types';
@@ -51,6 +52,7 @@ export function Sidebar() {
     { label: '今天', href: '/', icon: CalendarDays },
     { label: '收件箱', href: '/inbox', icon: Inbox },
     { label: '项目总览', href: '/projects', icon: FolderKanban },
+    { label: '插件市场', href: '/plugins', icon: Blocks },
     { label: '已归档', href: '/archive', icon: Archive },
     { label: '回收站', href: '/trash', icon: Trash2 },
   ];
