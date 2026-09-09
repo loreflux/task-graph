@@ -153,6 +153,11 @@ export function GraphContextMenu({
               </div>
               <span className="font-mono text-[10px] text-zinc-500">Ctrl+Z</span>
             </button>
+            {canUndo && lastActionDesc && (
+              <div className="px-2.5 pb-1 text-[10px] text-zinc-500 truncate max-w-[180px]">
+                可撤销: {lastActionDesc}
+              </div>
+            )}
 
             <button
               onClick={() => {
@@ -238,6 +243,11 @@ export function GraphContextMenu({
               </div>
               <span className="font-mono text-[10px] text-zinc-500">Ctrl+Z</span>
             </button>
+            {canUndo && lastActionDesc && (
+              <div className="px-2.5 pb-1 text-[10px] text-zinc-500 truncate max-w-[180px]">
+                可撤销: {lastActionDesc}
+              </div>
+            )}
 
             <button
               onClick={() => {

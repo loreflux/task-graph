@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -246,13 +246,86 @@ function TaskGraphFlow({
     [relations, tasks, pushAction, onRefresh],
   );
 
-  // Save node positions on drag stop
-  const onNodeDragStop = useCallback((_: any, node: Node) => {
-    setNodes((currentNodes) => {
-      savePositions(currentNodes);
-      return currentNodes;
-    });
-  }, [setNodes]);
+  // Keep track of positions at drag start to enable undoing node movements
+  const dragStartPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  const onNodeDragStart = useCallback((_: any, node: Node, draggedNodes?: Node[]) => {
+    const map = new Map<string, { x: number; y: number }>();
+    const targetNodes = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
+    for (const n of targetNodes) {
+      map.set(n.id, { x: n.position.x, y: n.position.y });
+    }
+    dragStartPositionsRef.current = map;
+  }, []);
+
+  // Save node positions on drag stop and push undo action
+  const onNodeDragStop = useCallback(
+    (_: any, node: Node, draggedNodes?: Node[]) => {
+      const savedPositions = getSavedPositions();
+      const startMap = dragStartPositionsRef.current;
+      const targetNodes = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
+
+      let hasMoved = false;
+      const oldPositions: Array<{ id: string; position: { x: number; y: number } }> = [];
+      const newPositions: Array<{ id: string; position: { x: number; y: number } }> = [];
+
+      for (const n of targetNodes) {
+        const startPos = startMap.get(n.id) || savedPositions[n.id];
+        if (startPos) {
+          const dx = Math.abs(startPos.x - n.position.x);
+          const dy = Math.abs(startPos.y - n.position.y);
+          if (dx > 2 || dy > 2) {
+            hasMoved = true;
+          }
+          oldPositions.push({ id: n.id, position: { ...startPos } });
+          newPositions.push({ id: n.id, position: { ...n.position } });
+        }
+      }
+
+      // Persist all current nodes' positions to localStorage
+      setNodes((currentNodes) => {
+        savePositions(currentNodes);
+        return currentNodes;
+      });
+
+      // Record undo action if node(s) actually moved
+      if (hasMoved && oldPositions.length > 0) {
+        const task = (node.data as any)?.task || tasks.find((t) => t.id === node.id);
+        const nodeTitle = task?.title ? `"${task.title}"` : '任务节点';
+        const actionDesc =
+          oldPositions.length === 1
+            ? `移动节点 ${nodeTitle}`
+            : `移动 ${oldPositions.length} 个节点`;
+
+        pushAction({
+          description: actionDesc,
+          undo: () => {
+            setNodes((currentNodes) => {
+              const updated = currentNodes.map((cn) => {
+                const found = oldPositions.find((op) => op.id === cn.id);
+                return found ? { ...cn, position: { ...found.position } } : cn;
+              });
+              savePositions(updated);
+              return updated;
+            });
+          },
+          redo: () => {
+            setNodes((currentNodes) => {
+              const updated = currentNodes.map((cn) => {
+                const found = newPositions.find((np) => np.id === cn.id);
+                return found ? { ...cn, position: { ...found.position } } : cn;
+              });
+              savePositions(updated);
+              return updated;
+            });
+          },
+        });
+      }
+
+      dragStartPositionsRef.current.clear();
+    },
+    [tasks, pushAction, setNodes],
+  );
 
   // Update nodes and edges while respecting user position preference
   useEffect(() => {
@@ -611,6 +684,7 @@ function TaskGraphFlow({
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         onNodeClick={onNodeClick}
+        onNodeDragStart={onNodeDragStart}
         onNodeDragStop={onNodeDragStop}
         onPaneClick={onPaneClick}
         onPaneContextMenu={onPaneContextMenu}
