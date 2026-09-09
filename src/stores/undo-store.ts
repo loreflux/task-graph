@@ -1,82 +1,77 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
-/** A command that can be undone/redone */
-export interface UndoableCommand {
-  /** Human-readable description */
+export interface UndoAction {
+  id: string;
   description: string;
-  /** Execute the command */
-  execute: () => Promise<void>;
-  /** Undo the command */
-  undo: () => Promise<void>;
+  undo: () => Promise<void> | void;
+  redo?: () => Promise<void> | void;
+  timestamp: number;
 }
 
 interface UndoState {
-  /** Past commands (undo stack) */
-  past: UndoableCommand[];
-  /** Future commands (redo stack) */
-  future: UndoableCommand[];
-
-  /** Execute a new command and push to undo stack */
-  execute: (command: UndoableCommand) => Promise<void>;
-
-  /** Undo the last command */
-  undo: () => Promise<void>;
-
-  /** Redo the last undone command */
-  redo: () => Promise<void>;
-
-  /** Check if undo is available */
-  canUndo: () => boolean;
-
-  /** Check if redo is available */
-  canRedo: () => boolean;
-
-  /** Clear all history */
-  clear: () => void;
+  history: UndoAction[];
+  pushAction: (action: {
+    description: string;
+    undo: () => Promise<void> | void;
+    redo?: () => Promise<void> | void;
+  }) => void;
+  undo: () => Promise<boolean>;
+  canUndo: boolean;
+  lastActionDescription: string | null;
+  clearHistory: () => void;
 }
 
-const MAX_HISTORY = 50;
+const MAX_HISTORY_LENGTH = 50;
 
 export const useUndoStore = create<UndoState>((set, get) => ({
-  past: [],
-  future: [],
+  history: [],
+  canUndo: false,
+  lastActionDescription: null,
 
-  execute: async (command) => {
-    await command.execute();
-    set((state) => ({
-      past: [...state.past.slice(-MAX_HISTORY + 1), command],
-      future: [], // clear redo stack on new action
-    }));
-  },
+  pushAction: (action) =>
+    set((state) => {
+      const newAction: UndoAction = {
+        ...action,
+        id: `undo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        timestamp: Date.now(),
+      };
+      const updatedHistory = [...state.history, newAction].slice(-MAX_HISTORY_LENGTH);
+      return {
+        history: updatedHistory,
+        canUndo: true,
+        lastActionDescription: action.description,
+      };
+    }),
 
   undo: async () => {
-    const { past, future } = get();
-    if (past.length === 0) return;
+    const { history } = get();
+    if (history.length === 0) return false;
 
-    const command = past[past.length - 1];
-    await command.undo();
-
-    set({
-      past: past.slice(0, -1),
-      future: [command, ...future],
-    });
-  },
-
-  redo: async () => {
-    const { past, future } = get();
-    if (future.length === 0) return;
-
-    const command = future[0];
-    await command.execute();
+    const actionToUndo = history[history.length - 1];
+    const remainingHistory = history.slice(0, -1);
 
     set({
-      past: [...past, command],
-      future: future.slice(1),
+      history: remainingHistory,
+      canUndo: remainingHistory.length > 0,
+      lastActionDescription:
+        remainingHistory.length > 0
+          ? remainingHistory[remainingHistory.length - 1].description
+          : null,
     });
+
+    try {
+      await actionToUndo.undo();
+      return true;
+    } catch (err) {
+      console.error('Failed to execute undo action:', err);
+      return false;
+    }
   },
 
-  canUndo: () => get().past.length > 0,
-  canRedo: () => get().future.length > 0,
-
-  clear: () => set({ past: [], future: [] }),
+  clearHistory: () =>
+    set({
+      history: [],
+      canUndo: false,
+      lastActionDescription: null,
+    }),
 }));

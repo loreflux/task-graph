@@ -30,6 +30,7 @@ import { getCriticalPath } from '@/lib/graph-algorithms/critical-path';
 import { dataAdapter } from '@/lib/storage/data-adapter';
 import { useUIStore } from '@/stores/ui-store';
 import { useSettingsStore } from '@/stores/settings-store';
+import { useUndoStore } from '@/stores/undo-store';
 import { PromptDialog } from '@/components/ui/prompt-dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { formatDuration } from '@/lib/utils';
@@ -82,6 +83,7 @@ function TaskGraphFlow({
 }: TaskGraphViewProps) {
   const { openDrawer } = useUIStore();
   const { settings } = useSettingsStore();
+  const { pushAction, undo, canUndo, lastActionDescription } = useUndoStore();
   const { fitView, screenToFlowPosition } = useReactFlow();
 
   const [showCriticalPath, setShowCriticalPath] = useState(false);
@@ -100,6 +102,42 @@ function TaskGraphFlow({
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const [subtaskParentTask, setSubtaskParentTask] = useState<Task | null>(null);
   const [deleteTargetTask, setDeleteTargetTask] = useState<Task | null>(null);
+
+  // Handle undo action
+  const handleUndo = useCallback(async () => {
+    const desc = lastActionDescription;
+    const success = await undo();
+    if (success) {
+      toast.success(`已撤销：${desc || '上一步操作'}`);
+      onRefresh?.();
+    } else {
+      toast.info('暂无可撤销的操作');
+    }
+  }, [undo, lastActionDescription, onRefresh]);
+
+  // Global Ctrl+Z / Cmd+Z shortcut listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isInput =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable;
+      if (isInput) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo]);
+
+  // Click on blank pane: immediately close context menu
+  const onPaneClick = useCallback(() => {
+    setContextMenu((prev) => ({ ...prev, open: false }));
+  }, []);
 
   // 1. Calculate Critical Path when enabled
   const { criticalPathResult, criticalNodeIds, criticalEdgeIds } = useMemo(() => {
@@ -176,18 +214,36 @@ function TaskGraphFlow({
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes as Node[]);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges as Edge[]);
 
-  // Delete edge action handler
+  // Delete edge action handler with undo recording
   const handleDeleteEdge = useCallback(
     async (edgeId: string) => {
+      const rel = relations.find((r) => r.id === edgeId);
+      const sourceTask = tasks.find((t) => t.id === rel?.targetTaskId);
+      const targetTask = tasks.find((t) => t.id === rel?.sourceTaskId);
+      const relDesc = sourceTask && targetTask ? `「${sourceTask.title} → ${targetTask.title}」` : '';
+      const prevRel = rel ? { ...rel } : null;
+
       const res = await dataAdapter.removeDependency(edgeId);
       if (res.success) {
+        if (prevRel) {
+          pushAction({
+            description: `删除依赖连线 ${relDesc}`,
+            undo: async () => {
+              await dataAdapter.addDependency(
+                prevRel.sourceTaskId,
+                prevRel.targetTaskId,
+                prevRel.description || undefined,
+              );
+            },
+          });
+        }
         toast.success('已删除依赖连线');
         onRefresh?.();
       } else {
         toast.error(res.error || '删除依赖连线失败');
       }
     },
-    [onRefresh],
+    [relations, tasks, pushAction, onRefresh],
   );
 
   // Save node positions on drag stop
@@ -285,11 +341,25 @@ function TaskGraphFlow({
         return;
       }
 
+      const relId = res.data?.id;
+      const depTask = tasks.find((t) => t.id === dependencyId);
+      const targetTask = tasks.find((t) => t.id === dependentId);
+      const depDesc = depTask && targetTask ? `「${depTask.title} → ${targetTask.title}」` : '';
+
+      if (relId) {
+        pushAction({
+          description: `建立依赖连线 ${depDesc}`,
+          undo: async () => {
+            await dataAdapter.removeDependency(relId);
+          },
+        });
+      }
+
       toast.success('已成功建立前置依赖关系');
       setEdges((eds) => addEdge(connection, eds));
       onRefresh?.();
     },
-    [tasks, relations, setEdges, onRefresh],
+    [tasks, relations, pushAction, setEdges, onRefresh],
   );
 
   // 5. Handle edge deletion (keyboard Delete/Backspace or selection removal)
@@ -366,6 +436,11 @@ function TaskGraphFlow({
 
   // 9. 一键拓扑整理 action
   const handleAutoLayout = useCallback(() => {
+    const prevPositions = nodes.map((n) => ({
+      id: n.id,
+      position: { ...n.position },
+    }));
+
     const layout = computeGraphLayout(
       filteredTasks,
       relations,
@@ -393,6 +468,27 @@ function TaskGraphFlow({
     });
     setEdges(customEdges as Edge[]);
 
+    pushAction({
+      description: '一键拓扑整理',
+      undo: () => {
+        setNodes((prevNodes) =>
+          prevNodes.map((pn) => {
+            const found = prevPositions.find((p) => p.id === pn.id);
+            return found ? { ...pn, position: found.position } : pn;
+          }),
+        );
+        savePositions(
+          nodes.map((n) => {
+            const found = prevPositions.find((p) => p.id === n.id);
+            return found ? { ...n, position: found.position } : n;
+          }),
+        );
+        setTimeout(() => {
+          fitView({ duration: 300, padding: 0.15 });
+        }, 50);
+      },
+    });
+
     setTimeout(() => {
       fitView({ duration: 500, padding: 0.15 });
       toast.success('已完成一键拓扑整理');
@@ -403,8 +499,10 @@ function TaskGraphFlow({
     blockedTaskIds,
     criticalNodeIds,
     criticalEdgeIds,
+    nodes,
     tasks,
     handleDeleteEdge,
+    pushAction,
     setNodes,
     setEdges,
     fitView,
@@ -416,7 +514,17 @@ function TaskGraphFlow({
       title,
       status: 'TODO',
     });
-    if (res.success) {
+    if (res.success && res.data?.id) {
+      const createdId = res.data.id;
+      pushAction({
+        description: `新建节点 "${title}"`,
+        undo: async () => {
+          await dataAdapter.deleteTask(createdId, true);
+        },
+      });
+      toast.success(`已创建新节点: ${title}`);
+      onRefresh?.();
+    } else if (res.success) {
       toast.success(`已创建新节点: ${title}`);
       onRefresh?.();
     } else {
@@ -428,12 +536,24 @@ function TaskGraphFlow({
     if (task.status === 'DONE') {
       const res = await dataAdapter.uncompleteTask(task.id);
       if (res.success) {
+        pushAction({
+          description: `恢复待办 "${task.title}"`,
+          undo: async () => {
+            await dataAdapter.completeTask(task.id, 'SINGLE');
+          },
+        });
         toast.success('已恢复为未完成待办');
         onRefresh?.();
       }
     } else {
       const res = await dataAdapter.completeTask(task.id, 'SINGLE');
       if (res.success) {
+        pushAction({
+          description: `完成任务 "${task.title}"`,
+          undo: async () => {
+            await dataAdapter.uncompleteTask(task.id);
+          },
+        });
         toast.success('已标记任务为完成');
         onRefresh?.();
       }
@@ -442,22 +562,40 @@ function TaskGraphFlow({
 
   const handleAddSubtaskConfirm = async (title: string) => {
     if (!subtaskParentTask) return;
+    const parentTitle = subtaskParentTask.title;
     const res = await dataAdapter.createTask({
       title,
       parentId: subtaskParentTask.id,
       projectId: subtaskParentTask.projectId,
       status: 'TODO',
     });
-    if (res.success) {
-      toast.success(`已在 "${subtaskParentTask.title}" 下创建子任务`);
+    if (res.success && res.data?.id) {
+      const createdId = res.data.id;
+      pushAction({
+        description: `添加子任务 "${title}"`,
+        undo: async () => {
+          await dataAdapter.deleteTask(createdId, true);
+        },
+      });
+      toast.success(`已在 "${parentTitle}" 下创建子任务`);
+      onRefresh?.();
+    } else if (res.success) {
+      toast.success(`已在 "${parentTitle}" 下创建子任务`);
       onRefresh?.();
     }
   };
 
   const handleDeleteTaskConfirm = async () => {
     if (!deleteTargetTask) return;
-    const res = await dataAdapter.deleteTask(deleteTargetTask.id);
+    const target = deleteTargetTask;
+    const res = await dataAdapter.deleteTask(target.id);
     if (res.success) {
+      pushAction({
+        description: `删除节点 "${target.title}"`,
+        undo: async () => {
+          await dataAdapter.restoreTask(target.id);
+        },
+      });
       toast.success('已移入回收站');
       onRefresh?.();
     }
@@ -474,6 +612,7 @@ function TaskGraphFlow({
         onEdgesDelete={onEdgesDelete}
         onNodeClick={onNodeClick}
         onNodeDragStop={onNodeDragStop}
+        onPaneClick={onPaneClick}
         onPaneContextMenu={onPaneContextMenu}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
@@ -511,6 +650,9 @@ function TaskGraphFlow({
             onToggleBlockedOnly={() => setShowBlockedOnly(!showBlockedOnly)}
             hideCompleted={hideCompleted}
             onToggleHideCompleted={() => setHideCompleted(!hideCompleted)}
+            onUndo={handleUndo}
+            canUndo={canUndo}
+            lastActionDesc={lastActionDescription}
           />
         </Panel>
 
@@ -546,6 +688,9 @@ function TaskGraphFlow({
         onAddSubtask={(task) => setSubtaskParentTask(task)}
         onDeleteTask={(task) => setDeleteTargetTask(task)}
         onDeleteEdge={handleDeleteEdge}
+        onUndo={handleUndo}
+        canUndo={canUndo}
+        lastActionDesc={lastActionDescription}
       />
 
       {/* Modal Dialog for Canvas Right-Click: Create Task */}

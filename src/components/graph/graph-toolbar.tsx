@@ -9,6 +9,7 @@ import {
   EyeOff,
   Eye,
   Sparkles,
+  Undo2,
 } from 'lucide-react';
 
 interface GraphToolbarProps {
@@ -20,6 +21,9 @@ interface GraphToolbarProps {
   onToggleBlockedOnly: () => void;
   hideCompleted: boolean;
   onToggleHideCompleted: () => void;
+  onUndo?: () => void;
+  canUndo?: boolean;
+  lastActionDesc?: string | null;
 }
 
 export function GraphToolbar({
@@ -31,9 +35,22 @@ export function GraphToolbar({
   onToggleBlockedOnly,
   hideCompleted,
   onToggleHideCompleted,
+  onUndo,
+  canUndo = false,
+  lastActionDesc = null,
 }: GraphToolbarProps) {
   return (
     <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/90 p-1.5 shadow-xl backdrop-blur">
+
+      <button
+        onClick={onUndo}
+        disabled={!canUndo}
+        title={canUndo ? `撤销上一步操作: ${lastActionDesc || ''} (Ctrl+Z)` : '暂无可撤销操作'}
+        className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+      >
+        <Undo2 className="h-3.5 w-3.5 text-amber-400" />
+        <span>撤销</span>
+      </button>
 
       <button
         onClick={onAutoLayout}
