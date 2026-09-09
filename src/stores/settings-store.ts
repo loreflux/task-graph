@@ -36,6 +36,7 @@ export interface AppSettings {
   showMiniMap: boolean;
   edgeType: 'smoothstep' | 'bezier';
   graphDirection: 'LR' | 'TB';
+  autoLayoutOnDataChange: boolean; // 数据变动时是否自动重新拓扑排版，默认 false
 }
 
 interface SettingsState {
@@ -74,6 +75,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   showMiniMap: true,
   edgeType: 'smoothstep',
   graphDirection: 'LR',
+  autoLayoutOnDataChange: false,
 };
 
 export function applyFontSizeToDOM(

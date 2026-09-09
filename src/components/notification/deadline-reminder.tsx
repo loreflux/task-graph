@@ -115,7 +115,7 @@ export function DeadlineReminderManager() {
                 duration: 9000,
                 action: {
                   label: '查看任务',
-                  onClick: () => openDrawer(task.id),
+                  onClick: () => openDrawer(task.id, task),
                 },
               });
 
@@ -138,7 +138,7 @@ export function DeadlineReminderManager() {
                   });
                   n.onclick = () => {
                     window.focus();
-                    openDrawer(task.id);
+                    openDrawer(task.id, task);
                   };
                 } catch {}
               }

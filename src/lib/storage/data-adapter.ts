@@ -1,7 +1,7 @@
 /**
  * @module storage/data-adapter
  * @description Unified data adapter routing operations to LocalStorage or PostgreSQL
- * based on user preference in settings.
+ * based on user preference in settings, with high-performance in-memory caching for zero-latency UI responses.
  */
 
 import { useSettingsStore } from '@/stores/settings-store';
@@ -28,7 +28,41 @@ function isLocalMode(): boolean {
   return useSettingsStore.getState().settings.storageMode === 'localstorage';
 }
 
+// ---------------------------------------------------------------------------
+// High-Performance Query In-Memory Cache (Instant UI Response)
+// ---------------------------------------------------------------------------
+interface CacheItem<T> {
+  data: T;
+  timestamp: number;
+}
+
+const CACHE_TTL_MS = 6000; // 6 seconds cache lifetime for instant queries
+
+const cache = {
+  tasks: new Map<string, CacheItem<Task[]>>(),
+  taskById: new Map<string, CacheItem<TaskWithRelations | null>>(),
+  relations: new Map<string, CacheItem<TaskRelation[]>>(),
+  projects: null as CacheItem<Project[]> | null,
+  inbox: null as CacheItem<Task[]> | null,
+  archived: null as CacheItem<Task[]> | null,
+  trash: null as CacheItem<Task[]> | null,
+
+  clear() {
+    this.tasks.clear();
+    this.taskById.clear();
+    this.relations.clear();
+    this.projects = null;
+    this.inbox = null;
+    this.archived = null;
+    this.trash = null;
+  },
+};
+
 export const dataAdapter = {
+  clearCache() {
+    cache.clear();
+  },
+
   // -------------------------------------------------------------
   // Tasks
   // -------------------------------------------------------------
@@ -36,38 +70,71 @@ export const dataAdapter = {
     if (isLocalMode()) {
       return localStorageService.getTasks(options);
     }
-    return serverTaskQueries.getTasks(options);
+
+    const key = `${options?.projectId || 'all'}_${options?.includeArchived ? '1' : '0'}`;
+    const cached = cache.tasks.get(key);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
+    const res = await serverTaskQueries.getTasks(options);
+    cache.tasks.set(key, { data: res, timestamp: Date.now() });
+    return res;
   },
 
   async getTaskById(id: string): Promise<TaskWithRelations | null> {
     if (isLocalMode()) {
       return localStorageService.getTaskById(id);
     }
-    return serverTaskQueries.getTaskById(id);
+
+    const cached = cache.taskById.get(id);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
+    const res = await serverTaskQueries.getTaskById(id);
+    cache.taskById.set(id, { data: res, timestamp: Date.now() });
+    return res;
   },
 
   async getInboxTasks(): Promise<Task[]> {
     if (isLocalMode()) {
       return localStorageService.getInboxTasks();
     }
-    return serverTaskQueries.getInboxTasks();
+    if (cache.inbox && Date.now() - cache.inbox.timestamp < CACHE_TTL_MS) {
+      return cache.inbox.data;
+    }
+    const res = await serverTaskQueries.getInboxTasks();
+    cache.inbox = { data: res, timestamp: Date.now() };
+    return res;
   },
 
   async getArchivedTasks(): Promise<Task[]> {
     if (isLocalMode()) {
       return localStorageService.getArchivedTasks();
     }
-    return serverTaskQueries.getArchivedTasks();
+    if (cache.archived && Date.now() - cache.archived.timestamp < CACHE_TTL_MS) {
+      return cache.archived.data;
+    }
+    const res = await serverTaskQueries.getArchivedTasks();
+    cache.archived = { data: res, timestamp: Date.now() };
+    return res;
   },
 
   async getTrashTasks(): Promise<Task[]> {
     if (isLocalMode()) {
       return localStorageService.getTrashTasks();
     }
-    return serverTaskQueries.getTrashTasks();
+    if (cache.trash && Date.now() - cache.trash.timestamp < CACHE_TTL_MS) {
+      return cache.trash.data;
+    }
+    const res = await serverTaskQueries.getTrashTasks();
+    cache.trash = { data: res, timestamp: Date.now() };
+    return res;
   },
 
   async createTask(input: CreateTaskInput): Promise<{ success: boolean; data?: Task; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         const task = localStorageService.createTask(input);
@@ -80,6 +147,7 @@ export const dataAdapter = {
   },
 
   async updateTask(id: string, input: UpdateTaskInput): Promise<{ success: boolean; data?: Task; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         const task = localStorageService.updateTask(id, input);
@@ -92,6 +160,7 @@ export const dataAdapter = {
   },
 
   async deleteTask(id: string, permanent = false): Promise<{ success: boolean; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         localStorageService.deleteTask(id, permanent);
@@ -104,6 +173,7 @@ export const dataAdapter = {
   },
 
   async restoreTask(id: string): Promise<{ success: boolean; data?: Task; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         const task = localStorageService.restoreTask(id);
@@ -116,6 +186,7 @@ export const dataAdapter = {
   },
 
   async archiveTask(id: string): Promise<{ success: boolean; data?: Task; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         const task = localStorageService.archiveTask(id);
@@ -131,6 +202,7 @@ export const dataAdapter = {
     id: string,
     strategy: CompletionStrategy = COMPLETION_STRATEGY.SINGLE,
   ): Promise<{ success: boolean; data?: { completed: string[] }; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         const res = localStorageService.completeTask(id, strategy);
@@ -143,6 +215,7 @@ export const dataAdapter = {
   },
 
   async uncompleteTask(id: string): Promise<{ success: boolean; data?: Task; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         const task = localStorageService.uncompleteTask(id);
@@ -155,6 +228,7 @@ export const dataAdapter = {
   },
 
   async batchComplete(ids: string[]): Promise<{ success: boolean; data?: { completed: string[] }; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         const res = localStorageService.batchComplete(ids);
@@ -167,6 +241,7 @@ export const dataAdapter = {
   },
 
   async batchArchive(ids: string[]): Promise<{ success: boolean; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         localStorageService.batchArchive(ids);
@@ -179,6 +254,7 @@ export const dataAdapter = {
   },
 
   async batchDelete(ids: string[], permanent = false): Promise<{ success: boolean; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         localStorageService.batchDelete(ids, permanent);
@@ -205,7 +281,14 @@ export const dataAdapter = {
     if (isLocalMode()) {
       return localStorageService.getAllRelations(projectId);
     }
-    return serverTaskQueries.getAllRelations(projectId);
+    const key = projectId || 'all';
+    const cached = cache.relations.get(key);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+    const res = await serverTaskQueries.getAllRelations(projectId);
+    cache.relations.set(key, { data: res, timestamp: Date.now() });
+    return res;
   },
 
   async addDependency(
@@ -213,6 +296,7 @@ export const dataAdapter = {
     targetTaskId: string,
     description?: string,
   ): Promise<{ success: boolean; data?: TaskRelation; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         const rel = localStorageService.addDependency(sourceTaskId, targetTaskId, description);
@@ -225,6 +309,7 @@ export const dataAdapter = {
   },
 
   async removeDependency(relationId: string): Promise<{ success: boolean; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         localStorageService.removeDependency(relationId);
@@ -243,7 +328,12 @@ export const dataAdapter = {
     if (isLocalMode()) {
       return localStorageService.getProjects();
     }
-    return serverProjectQueries.getProjects();
+    if (cache.projects && Date.now() - cache.projects.timestamp < CACHE_TTL_MS) {
+      return cache.projects.data;
+    }
+    const res = await serverProjectQueries.getProjects();
+    cache.projects = { data: res, timestamp: Date.now() };
+    return res;
   },
 
   async getProjectById(id: string): Promise<Project | null> {
@@ -254,6 +344,7 @@ export const dataAdapter = {
   },
 
   async createProject(input: CreateProjectInput): Promise<{ success: boolean; data?: Project; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         const p = localStorageService.createProject(input);
@@ -266,6 +357,7 @@ export const dataAdapter = {
   },
 
   async updateProject(id: string, input: UpdateProjectInput): Promise<{ success: boolean; data?: Project; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         const p = localStorageService.updateProject(id, input);
@@ -278,6 +370,7 @@ export const dataAdapter = {
   },
 
   async deleteProject(id: string): Promise<{ success: boolean; error?: string }> {
+    cache.clear();
     if (isLocalMode()) {
       try {
         localStorageService.deleteProject(id);

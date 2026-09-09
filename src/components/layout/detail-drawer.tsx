@@ -28,7 +28,7 @@ interface DetailDrawerProps {
 }
 
 export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
-  const { selectedTaskId, isDrawerOpen, closeDrawer } = useUIStore();
+  const { selectedTaskId, selectedTaskInitialData, isDrawerOpen, closeDrawer } = useUIStore();
 
   const [task, setTask] = useState<TaskWithRelations | null>(null);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
@@ -49,11 +49,36 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
   // Fetch full details when selectedTaskId changes
   useEffect(() => {
     if (!selectedTaskId || !isDrawerOpen) {
-      setTask(null);
       return;
     }
 
-    setLoading(true);
+    // Immediately pre-populate with known initial task data to guarantee 0ms perceived response
+    if (selectedTaskInitialData && selectedTaskInitialData.id === selectedTaskId) {
+      const initial = selectedTaskInitialData;
+      setTask((prev) => ({
+        ...initial,
+        children: prev?.id === selectedTaskId ? prev.children : [],
+        dependencies: prev?.id === selectedTaskId ? prev.dependencies : [],
+        dependents: prev?.id === selectedTaskId ? prev.dependents : [],
+      }));
+      setTitle(initial.title || '');
+      setDescription(initial.description || '');
+      setStatus(initial.status || 'TODO');
+      setPriority(initial.priority || 'NONE');
+      setStartAt(
+        initial.startAt ? new Date(initial.startAt).toISOString().slice(0, 16) : '',
+      );
+      setEndAt(
+        initial.endAt ? new Date(initial.endAt).toISOString().slice(0, 16) : '',
+      );
+      setEstimatedDuration(
+        initial.estimatedDuration ? String(initial.estimatedDuration) : '',
+      );
+    } else if (!task || task.id !== selectedTaskId) {
+      setLoading(true);
+    }
+
+    // Fetch full details and relations asynchronously without blocking initial render
     Promise.all([
       dataAdapter.getTaskById(selectedTaskId),
       dataAdapter.getTasks({ includeArchived: true }),
@@ -80,7 +105,7 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
         setAllRelations(relationsList);
       })
       .finally(() => setLoading(false));
-  }, [selectedTaskId, isDrawerOpen]);
+  }, [selectedTaskId, selectedTaskInitialData, isDrawerOpen]);
 
   if (!isDrawerOpen || !selectedTaskId) return null;
 
@@ -221,7 +246,7 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
 
       {/* Drawer Content */}
       <div className="flex-1 overflow-y-auto p-5 space-y-6 text-sm">
-        {loading || !task ? (
+        {!task ? (
           <div className="py-12 text-center text-xs text-zinc-500">加载详情中...</div>
         ) : (
           <>

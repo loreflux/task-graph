@@ -8,9 +8,13 @@ import { BatchActionsBar } from './batch-actions-bar';
 import { dataAdapter } from '@/lib/storage/data-adapter';
 import { Inbox, CheckCircle2 } from 'lucide-react';
 
-export function InboxView() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+interface InboxViewProps {
+  initialTasks?: Task[];
+}
+
+export function InboxView({ initialTasks = [] }: InboxViewProps) {
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [loading, setLoading] = useState(false);
 
   const refresh = async () => {
     try {

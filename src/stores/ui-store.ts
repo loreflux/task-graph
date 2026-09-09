@@ -8,11 +8,12 @@ interface UIState {
 
   /** Currently selected task ID (for detail drawer) */
   selectedTaskId: string | null;
-  setSelectedTaskId: (id: string | null) => void;
+  selectedTaskInitialData: any | null;
+  setSelectedTaskId: (id: string | null, initialData?: any) => void;
 
   /** Whether the detail drawer is open */
   isDrawerOpen: boolean;
-  openDrawer: (taskId: string) => void;
+  openDrawer: (taskId: string, initialData?: any) => void;
   closeDrawer: () => void;
 
   /** Whether the command palette is open */
@@ -57,12 +58,14 @@ export const useUIStore = create<UIState>((set) => ({
   setCurrentView: (view) => set({ currentView: view }),
 
   selectedTaskId: null,
-  setSelectedTaskId: (id) => set({ selectedTaskId: id }),
+  selectedTaskInitialData: null,
+  setSelectedTaskId: (id, initialData) =>
+    set({ selectedTaskId: id, selectedTaskInitialData: initialData || null }),
 
   isDrawerOpen: false,
-  openDrawer: (taskId) =>
-    set({ isDrawerOpen: true, selectedTaskId: taskId }),
-  closeDrawer: () => set({ isDrawerOpen: false, selectedTaskId: null }),
+  openDrawer: (taskId, initialData) =>
+    set({ isDrawerOpen: true, selectedTaskId: taskId, selectedTaskInitialData: initialData || null }),
+  closeDrawer: () => set({ isDrawerOpen: false, selectedTaskId: null, selectedTaskInitialData: null }),
 
   isCommandPaletteOpen: false,
   setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),

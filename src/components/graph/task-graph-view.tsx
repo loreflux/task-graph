@@ -21,6 +21,7 @@ import '@xyflow/react/dist/style.css';
 
 import type { Task, TaskRelation } from '@/types';
 import { TaskNode } from './task-node';
+import { TaskEdge } from './task-edge';
 import { GraphToolbar } from './graph-toolbar';
 import { GraphContextMenu, type ContextMenuState } from './graph-context-menu';
 import { computeGraphLayout } from '@/lib/graph-layout';
@@ -28,6 +29,7 @@ import { detectCycle } from '@/lib/graph-algorithms/cycle-detection';
 import { getCriticalPath } from '@/lib/graph-algorithms/critical-path';
 import { dataAdapter } from '@/lib/storage/data-adapter';
 import { useUIStore } from '@/stores/ui-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { PromptDialog } from '@/components/ui/prompt-dialog';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { formatDuration } from '@/lib/utils';
@@ -37,6 +39,33 @@ import { toast } from 'sonner';
 const nodeTypes = {
   taskNode: TaskNode,
 };
+
+const edgeTypes = {
+  taskEdge: TaskEdge,
+};
+
+const POSITIONS_STORAGE_KEY = 'task_graph_user_node_positions';
+
+function getSavedPositions(): Record<string, { x: number; y: number }> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(POSITIONS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePositions(nodesList: Node[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    const posMap: Record<string, { x: number; y: number }> = getSavedPositions();
+    for (const n of nodesList) {
+      posMap[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
+    }
+    localStorage.setItem(POSITIONS_STORAGE_KEY, JSON.stringify(posMap));
+  } catch {}
+}
 
 interface TaskGraphViewProps {
   tasks: Task[];
@@ -52,6 +81,7 @@ function TaskGraphFlow({
   onRefresh,
 }: TaskGraphViewProps) {
   const { openDrawer } = useUIStore();
+  const { settings } = useSettingsStore();
   const { fitView, screenToFlowPosition } = useReactFlow();
 
   const [showCriticalPath, setShowCriticalPath] = useState(false);
@@ -146,10 +176,81 @@ function TaskGraphFlow({
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes as Node[]);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges as Edge[]);
 
+  // Delete edge action handler
+  const handleDeleteEdge = useCallback(
+    async (edgeId: string) => {
+      const res = await dataAdapter.removeDependency(edgeId);
+      if (res.success) {
+        toast.success('已删除依赖连线');
+        onRefresh?.();
+      } else {
+        toast.error(res.error || '删除依赖连线失败');
+      }
+    },
+    [onRefresh],
+  );
+
+  // Save node positions on drag stop
+  const onNodeDragStop = useCallback((_: any, node: Node) => {
+    setNodes((currentNodes) => {
+      savePositions(currentNodes);
+      return currentNodes;
+    });
+  }, [setNodes]);
+
+  // Update nodes and edges while respecting user position preference
   useEffect(() => {
-    setNodes(initialNodes as Node[]);
-    setEdges(initialEdges as Edge[]);
-  }, [initialNodes, initialEdges, setNodes, setEdges]);
+    const savedPositions = getSavedPositions();
+    setNodes((prevNodes) => {
+      const currentPosMap = new Map<string, { x: number; y: number }>();
+      for (const pn of prevNodes) {
+        currentPosMap.set(pn.id, pn.position);
+      }
+
+      return initialNodes.map((n) => {
+        // If user explicitly enabled auto layout on data change, take newly computed layout
+        if (settings.autoLayoutOnDataChange) {
+          return n;
+        }
+        // Otherwise, preserve user dragged/custom coordinates
+        const saved = currentPosMap.get(n.id) || savedPositions[n.id];
+        if (saved) {
+          return {
+            ...n,
+            position: saved,
+          };
+        }
+        return n;
+      }) as Node[];
+    });
+
+    // Construct custom edges with taskEdge and interactive delete callback
+    const customEdges = initialEdges.map((e) => {
+      const rel = relations.find((r) => r.id === e.id);
+      const sourceTask = tasks.find((t) => t.id === rel?.targetTaskId);
+      const targetTask = tasks.find((t) => t.id === rel?.sourceTaskId);
+      return {
+        ...e,
+        type: 'taskEdge',
+        data: {
+          ...e.data,
+          sourceTitle: sourceTask?.title,
+          targetTitle: targetTask?.title,
+          onDelete: handleDeleteEdge,
+        },
+      };
+    });
+    setEdges(customEdges as Edge[]);
+  }, [
+    initialNodes,
+    initialEdges,
+    settings.autoLayoutOnDataChange,
+    relations,
+    tasks,
+    handleDeleteEdge,
+    setNodes,
+    setEdges,
+  ]);
 
   // 4. Handle connecting a new dependency edge
   const onConnect = useCallback(
@@ -191,27 +292,22 @@ function TaskGraphFlow({
     [tasks, relations, setEdges, onRefresh],
   );
 
-  // 5. Handle edge deletion
+  // 5. Handle edge deletion (keyboard Delete/Backspace or selection removal)
   const onEdgesDelete = useCallback(
     async (deletedEdges: Edge[]) => {
       for (const edge of deletedEdges) {
-        const res = await dataAdapter.removeDependency(edge.id);
-        if (!res.success) {
-          toast.error(res.error || '删除依赖关系失败');
-        } else {
-          toast.success('已删除依赖关系');
-        }
+        await handleDeleteEdge(edge.id);
       }
-      onRefresh?.();
     },
-    [onRefresh],
+    [handleDeleteEdge],
   );
 
-  // 6. Handle node click -> open detail drawer
+  // 6. Handle node click -> open detail drawer with immediate task data
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       setContextMenu((prev) => ({ ...prev, open: false }));
-      openDrawer(node.id);
+      const task = (node.data as any)?.task as Task;
+      openDrawer(node.id, task);
     },
     [openDrawer],
   );
@@ -244,7 +340,31 @@ function TaskGraphFlow({
     [],
   );
 
-  // 9. Auto Layout action
+  // 8.1 Right-click on edge
+  const onEdgeContextMenu = useCallback(
+    (e: React.MouseEvent, edge: Edge) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rel = relations.find((r) => r.id === edge.id);
+      const sourceTask = tasks.find((t) => t.id === rel?.targetTaskId);
+      const targetTask = tasks.find((t) => t.id === rel?.sourceTaskId);
+      const label =
+        sourceTask && targetTask
+          ? `${sourceTask.title} → ${targetTask.title}`
+          : undefined;
+      setContextMenu({
+        open: true,
+        x: e.clientX,
+        y: e.clientY,
+        type: 'edge',
+        edgeId: edge.id,
+        edgeLabel: label,
+      });
+    },
+    [relations, tasks],
+  );
+
+  // 9. 一键拓扑整理 action
   const handleAutoLayout = useCallback(() => {
     const layout = computeGraphLayout(
       filteredTasks,
@@ -254,10 +374,28 @@ function TaskGraphFlow({
       criticalEdgeIds,
     );
     setNodes(layout.nodes as Node[]);
-    setEdges(layout.edges as Edge[]);
+    savePositions(layout.nodes as Node[]);
+
+    const customEdges = layout.edges.map((e) => {
+      const rel = relations.find((r) => r.id === e.id);
+      const sourceTask = tasks.find((t) => t.id === rel?.targetTaskId);
+      const targetTask = tasks.find((t) => t.id === rel?.sourceTaskId);
+      return {
+        ...e,
+        type: 'taskEdge',
+        data: {
+          ...e.data,
+          sourceTitle: sourceTask?.title,
+          targetTitle: targetTask?.title,
+          onDelete: handleDeleteEdge,
+        },
+      };
+    });
+    setEdges(customEdges as Edge[]);
+
     setTimeout(() => {
       fitView({ duration: 500, padding: 0.15 });
-      toast.success('已完成拓扑分层智能排版');
+      toast.success('已完成一键拓扑整理');
     }, 50);
   }, [
     filteredTasks,
@@ -265,6 +403,8 @@ function TaskGraphFlow({
     blockedTaskIds,
     criticalNodeIds,
     criticalEdgeIds,
+    tasks,
+    handleDeleteEdge,
     setNodes,
     setEdges,
     fitView,
@@ -333,9 +473,13 @@ function TaskGraphFlow({
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
         onNodeClick={onNodeClick}
+        onNodeDragStop={onNodeDragStop}
         onPaneContextMenu={onPaneContextMenu}
         onNodeContextMenu={onNodeContextMenu}
+        onEdgeContextMenu={onEdgeContextMenu}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        deleteKeyCode={['Backspace', 'Delete']}
         fitView
         minZoom={0.2}
         maxZoom={1.8}
@@ -401,6 +545,7 @@ function TaskGraphFlow({
         onToggleStatus={handleToggleNodeStatus}
         onAddSubtask={(task) => setSubtaskParentTask(task)}
         onDeleteTask={(task) => setDeleteTargetTask(task)}
+        onDeleteEdge={handleDeleteEdge}
       />
 
       {/* Modal Dialog for Canvas Right-Click: Create Task */}

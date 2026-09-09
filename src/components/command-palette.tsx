@@ -128,7 +128,7 @@ export function CommandPalette({ onRefresh }: CommandPaletteProps) {
                 <button
                   key={t.id}
                   onClick={() => {
-                    openDrawer(t.id);
+                    openDrawer(t.id, t);
                     handleClose();
                   }}
                   className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-zinc-800 hover:text-white"

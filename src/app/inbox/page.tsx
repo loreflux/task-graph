@@ -9,7 +9,7 @@ export default async function InboxPage() {
 
   return (
     <AppShell title="收件箱" count={tasks.length}>
-      <InboxView />
+      <InboxView initialTasks={tasks} />
     </AppShell>
   );
 }

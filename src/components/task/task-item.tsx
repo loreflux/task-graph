@@ -147,7 +147,7 @@ export function TaskItem({
   return (
     <>
       <div
-        onClick={() => openDrawer(task.id)}
+        onClick={() => openDrawer(task.id, task)}
         style={{ paddingLeft: `${depth * 20 + 8}px` }}
         className={`group relative flex cursor-pointer items-center justify-between gap-3 border-b border-zinc-900/60 py-2.5 pr-3 transition hover:bg-zinc-900/40 ${
           selected ? 'bg-blue-950/20' : ''

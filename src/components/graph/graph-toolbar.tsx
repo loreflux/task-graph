@@ -8,6 +8,7 @@ import {
   Lock,
   EyeOff,
   Eye,
+  Sparkles,
 } from 'lucide-react';
 
 interface GraphToolbarProps {
@@ -36,11 +37,11 @@ export function GraphToolbar({
 
       <button
         onClick={onAutoLayout}
-        title="自动排版 (拓扑分层布局)"
-        className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+        title="一键拓扑整理 (根据依赖层级自动对齐重排)"
+        className="flex items-center gap-1.5 rounded-md bg-blue-600/20 px-2.5 py-1.5 text-xs font-semibold text-blue-300 border border-blue-500/30 transition hover:bg-blue-600/30 hover:text-blue-100"
       >
-        <LayoutGrid className="h-3.5 w-3.5" />
-        <span>分层排列</span>
+        <Sparkles className="h-3.5 w-3.5 text-blue-400" />
+        <span>一键拓扑整理</span>
       </button>
 
       <button

@@ -655,6 +655,25 @@ export function SettingsView() {
               </div>
 
               <div className="border-t border-zinc-800/80 pt-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-zinc-200">
+                      数据变动时自动执行拓扑整理
+                    </span>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                      默认关闭（将绝对保留您手动拖动规划的节点坐标与摆放布局）；开启后每次任务更新或增删连线将自动全局重排。
+                    </p>
+                  </div>
+                  <Checkbox
+                    checked={settings.autoLayoutOnDataChange}
+                    onCheckedChange={(checked) =>
+                      updateSettings({ autoLayoutOnDataChange: checked })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-zinc-800/80 pt-5">
                 <label className="block text-xs font-semibold text-zinc-200">
                   连线折线外观风格
                 </label>
