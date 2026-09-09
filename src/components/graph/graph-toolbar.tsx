@@ -48,7 +48,7 @@ export function GraphToolbar({
 
       <button
         onClick={onAutoLayout}
-        title="自动排版 (DAG 分层布局)"
+        title="自动排版 (拓扑分层布局)"
         className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
       >
         <LayoutGrid className="h-3.5 w-3.5" />

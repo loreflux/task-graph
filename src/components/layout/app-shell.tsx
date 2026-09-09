@@ -5,6 +5,7 @@ import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { DetailDrawer } from './detail-drawer';
 import { CommandPalette } from '@/components/command-palette';
+import { DeadlineReminderManager } from '@/components/notification/deadline-reminder';
 import { useUIStore } from '@/stores/ui-store';
 
 interface AppShellProps {
@@ -117,6 +118,9 @@ export function AppShell({
 
       {/* Command Palette Modal */}
       <CommandPalette onRefresh={onRefresh} />
+
+      {/* Proactive Task Deadline Reminder Background Manager */}
+      <DeadlineReminderManager />
     </div>
   );
 }

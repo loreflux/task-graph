@@ -16,58 +16,67 @@ export function generateId(): string {
 /**
  * Format a date for display in the user's locale.
  */
-export function formatDate(date: Date | null | undefined): string {
+export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "";
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(date);
+  }).format(d);
 }
 
 /**
  * Format a date with time for display.
  */
-export function formatDateTime(date: Date | null | undefined): string {
+export function formatDateTime(date: Date | string | null | undefined): string {
   if (!date) return "";
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).format(d);
 }
 
 /**
- * Format duration in minutes to human-readable string.
+ * Format duration in minutes to pure Chinese human-readable string.
  */
 export function formatDuration(minutes: number | null | undefined): string {
-  if (!minutes) return "";
-  if (minutes < 60) return `${minutes}m`;
+  if (!minutes || minutes <= 0) return "";
+  if (minutes < 60) return `${minutes}分钟`;
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  return mins > 0 ? `${hours}小时${mins}分钟` : `${hours}小时`;
 }
 
 /**
  * Check if a date is today.
  */
-export function isToday(date: Date): boolean {
+export function isToday(date: Date | string | null | undefined): boolean {
+  if (!date) return false;
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return false;
   const today = new Date();
   return (
-    date.getFullYear() === today.getFullYear() &&
-    date.getMonth() === today.getMonth() &&
-    date.getDate() === today.getDate()
+    d.getFullYear() === today.getFullYear() &&
+    d.getMonth() === today.getMonth() &&
+    d.getDate() === today.getDate()
   );
 }
 
 /**
  * Check if a date is overdue (before now).
  */
-export function isOverdue(date: Date | null | undefined): boolean {
+export function isOverdue(date: Date | string | null | undefined): boolean {
   if (!date) return false;
-  return date < new Date();
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return false;
+  return d.getTime() < Date.now();
 }
 
 /**

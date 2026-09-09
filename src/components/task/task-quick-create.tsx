@@ -16,7 +16,7 @@ interface TaskQuickCreateProps {
 export function TaskQuickCreate({
   parentId = null,
   projectId = null,
-  placeholder = '输入任务标题，按 Enter 快速创建...',
+  placeholder = '输入任务标题，按回车键快速创建...',
   defaultStatus = 'TODO',
   onCreated,
 }: TaskQuickCreateProps) {

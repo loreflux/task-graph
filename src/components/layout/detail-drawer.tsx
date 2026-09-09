@@ -450,7 +450,7 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
             <div className="space-y-3 border-t border-zinc-800/80 pt-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-zinc-300">
-                  子任务 (Parent-Child 拆解)
+                  子任务 (父子层级拆解)
                 </span>
                 <span className="text-[11px] text-zinc-500">
                   {task.children?.length || 0} 个子项

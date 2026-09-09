@@ -285,7 +285,7 @@ export function TaskItem({
         open={secondaryWarningOpen}
         onOpenChange={setSecondaryWarningOpen}
         title="依赖前置未完成警告"
-        description={`当前任务的前置依赖尚未执行完毕。若强行仅完成此任务，将破坏项目DAG时序逻辑。确定仍要强行完成吗？`}
+        description={`当前任务的前置依赖尚未执行完毕。若强行仅完成此任务，将破坏项目拓扑时序依赖逻辑。确定仍要强行完成吗？`}
         variant="danger"
         confirmText="确认强行完成"
         cancelText="返回检查"

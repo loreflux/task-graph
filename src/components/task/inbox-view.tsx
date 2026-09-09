@@ -31,7 +31,7 @@ export function InboxView() {
         <div className="flex items-center gap-2">
           <Inbox className="h-4 w-4 text-zinc-400" />
           <h2 className="text-sm font-semibold text-zinc-200">
-            收件箱 (Inbox 快速捕获)
+            收件箱 (任务快速捕获)
           </h2>
         </div>
         <p className="text-xs text-zinc-500">
@@ -40,7 +40,7 @@ export function InboxView() {
 
         <TaskQuickCreate
           defaultStatus="INBOX"
-          placeholder="快速捕捉任务想法，按 Enter 记录到收件箱..."
+          placeholder="快速捕捉任务想法，按回车键记录到收件箱..."
           onCreated={refresh}
         />
       </div>

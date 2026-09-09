@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
 export const metadata: Metadata = {
-  title: "Task Graph",
-  description: "可视化任务依赖管理系统",
+  title: "任务拓扑图系统",
+  description: "基于有向无环图的高性能可视化任务依赖与时序推理管理系统",
 };
 
 export default function RootLayout({
@@ -20,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className="dark">
-      <body className={`${inter.variable} font-sans`}>
+      <body className="font-sans antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -64,7 +64,7 @@ export function Sidebar() {
             <Network className="h-4 w-4" />
           </div>
           <span className="font-semibold tracking-tight text-zinc-100 text-sm">
-            Task Graph 任务图
+            任务拓扑依赖图
           </span>
         </div>
         {/* Mobile close button */}
@@ -174,8 +174,8 @@ export function Sidebar() {
           <span>系统设置</span>
         </Link>
         <div className="flex items-center justify-between px-3 py-1 text-[10px] text-zinc-600">
-          <span>Task Graph 系统</span>
-          <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-zinc-500">v1.0</span>
+          <span>任务拓扑图系统</span>
+          <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-zinc-500">版本 1.0</span>
         </div>
       </div>
 

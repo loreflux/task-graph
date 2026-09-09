@@ -120,7 +120,7 @@ export function TaskTreeView({
           <div className="flex items-center gap-2">
             <GitBranch className="h-4 w-4 text-blue-400" />
             <h2 className="text-sm font-semibold text-zinc-200">
-              任务层级拆解 (Parent-Child 树)
+              任务父子层级拆解树
             </h2>
           </div>
           <span className="text-xs text-zinc-500">

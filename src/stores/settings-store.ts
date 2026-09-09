@@ -1,11 +1,26 @@
 import { create } from 'zustand';
 
+export type FontSizeOption =
+  | 'compact'
+  | 'standard'
+  | 'comfortable'
+  | 'large'
+  | 'huge'
+  | 'cinema';
+
 export interface AppSettings {
   // 存储模式支持: localstorage | postgresql
   storageMode: 'postgresql' | 'localstorage';
 
-  // 字体大小偏好: 紧凑 (13px) | 标准 (14px) | 舒适 (15px) | 较大 (16px)
-  fontSize: 'compact' | 'standard' | 'comfortable' | 'large';
+  // 字体大小偏好: 紧凑 (14px) | 标准 (16px) | 舒适 (18px) | 大字号 (20px) | 超大屏 (22px) | 演示 (24px)
+  fontSize: FontSizeOption;
+  customFontSizePx: number | null; // 自定义直接设定像素大小 (12px ~ 28px)
+
+  // 临期主动提醒配置
+  enableDeadlineReminder: boolean;
+  reminderLeadMinutes: number; // 提前提醒时长 (分钟): 15, 30, 60, 120
+  enableAudioAlert: boolean; // 温和提示音
+  enableDesktopNotification: boolean; // 桌面系统弹窗
 
   // 常规设置
   defaultView: 'list' | 'tree' | 'graph';
@@ -29,13 +44,28 @@ interface SettingsState {
   resetSettings: () => void;
 }
 
+export const FONT_SIZE_MAP: Record<FontSizeOption, string> = {
+  compact: '14px',
+  standard: '16px',
+  comfortable: '18px',
+  large: '20px',
+  huge: '22px', // 专为 27-30 寸显示器优化
+  cinema: '24px', // 专为 4K / 30寸以上或远距演示优化
+};
+
 const DEFAULT_SETTINGS: AppSettings = {
   storageMode: 'postgresql',
   fontSize: 'standard',
+  customFontSizePx: null,
+
+  enableDeadlineReminder: true,
+  reminderLeadMinutes: 30,
+  enableAudioAlert: true,
+  enableDesktopNotification: false,
 
   defaultView: 'list',
   defaultTaskStatus: 'TODO',
-  timezone: 'Asia/Shanghai (中国标准时间 GMT+8)',
+  timezone: '中国标准时间 (东八区)',
   autoSaveDrawer: true,
 
   completionStrategy: 'SUGGESTION',
@@ -46,16 +76,16 @@ const DEFAULT_SETTINGS: AppSettings = {
   graphDirection: 'LR',
 };
 
-const FONT_SIZE_MAP: Record<AppSettings['fontSize'], string> = {
-  compact: '13px',
-  standard: '14px',
-  comfortable: '15px',
-  large: '16px',
-};
-
-export function applyFontSizeToDOM(size: AppSettings['fontSize']): void {
+export function applyFontSizeToDOM(
+  size: FontSizeOption,
+  customPx?: number | null,
+): void {
   if (typeof document !== 'undefined') {
-    document.documentElement.style.fontSize = FONT_SIZE_MAP[size] || '14px';
+    if (customPx && customPx >= 12 && customPx <= 32) {
+      document.documentElement.style.fontSize = `${customPx}px`;
+    } else {
+      document.documentElement.style.fontSize = FONT_SIZE_MAP[size] || '16px';
+    }
   }
 }
 
@@ -69,7 +99,7 @@ export const useSettingsStore = create<SettingsState>((set) => {
       } catch {}
     }
     // Apply initial font size to DOM
-    applyFontSizeToDOM(initialSettings.fontSize);
+    applyFontSizeToDOM(initialSettings.fontSize, initialSettings.customFontSizePx);
   }
 
   return {
@@ -80,8 +110,8 @@ export const useSettingsStore = create<SettingsState>((set) => {
         const updated = { ...state.settings, ...partial };
         if (typeof window !== 'undefined') {
           localStorage.setItem('task_graph_settings', JSON.stringify(updated));
-          if (partial.fontSize) {
-            applyFontSizeToDOM(partial.fontSize);
+          if (partial.fontSize !== undefined || partial.customFontSizePx !== undefined) {
+            applyFontSizeToDOM(updated.fontSize, updated.customFontSizePx);
           }
         }
         return { settings: updated };
@@ -91,7 +121,7 @@ export const useSettingsStore = create<SettingsState>((set) => {
       set(() => {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('task_graph_settings');
-          applyFontSizeToDOM(DEFAULT_SETTINGS.fontSize);
+          applyFontSizeToDOM(DEFAULT_SETTINGS.fontSize, null);
         }
         return { settings: DEFAULT_SETTINGS };
       }),

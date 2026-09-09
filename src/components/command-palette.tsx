@@ -99,7 +99,7 @@ export function CommandPalette({ onRefresh }: CommandPaletteProps) {
             className="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none"
           />
           <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
-            Esc
+            Esc 退出
           </kbd>
         </div>
 
@@ -156,7 +156,7 @@ export function CommandPalette({ onRefresh }: CommandPaletteProps) {
             >
               <List className="h-4 w-4 text-zinc-400" />
               <span>切换到 列表视图</span>
-              <kbd className="ml-auto text-[10px] text-zinc-500">L</kbd>
+              <kbd className="ml-auto text-[10px] text-zinc-500">按键 L</kbd>
             </button>
             <button
               onClick={() => {
@@ -167,7 +167,7 @@ export function CommandPalette({ onRefresh }: CommandPaletteProps) {
             >
               <GitBranch className="h-4 w-4 text-zinc-400" />
               <span>切换到 层级树视图</span>
-              <kbd className="ml-auto text-[10px] text-zinc-500">T</kbd>
+              <kbd className="ml-auto text-[10px] text-zinc-500">按键 T</kbd>
             </button>
             <button
               onClick={() => {
@@ -178,7 +178,7 @@ export function CommandPalette({ onRefresh }: CommandPaletteProps) {
             >
               <Network className="h-4 w-4 text-zinc-400" />
               <span>切换到 依赖关系图</span>
-              <kbd className="ml-auto text-[10px] text-zinc-500">G</kbd>
+              <kbd className="ml-auto text-[10px] text-zinc-500">按键 G</kbd>
             </button>
           </div>
 

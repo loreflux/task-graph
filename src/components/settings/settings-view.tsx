@@ -1,11 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useSettingsStore, type AppSettings } from '@/stores/settings-store';
+import React, { useState, useEffect } from 'react';
+import { useSettingsStore, FONT_SIZE_MAP, type FontSizeOption } from '@/stores/settings-store';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
+  playChimeSound,
+  requestDesktopNotificationPermission,
+} from '@/components/notification/deadline-reminder';
+import {
   Sliders,
+  Bell,
   GitBranch,
   Network,
   Info,
@@ -13,17 +18,46 @@ import {
   Database,
   HardDrive,
   Type,
+  Volume2,
+  Monitor,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function SettingsView() {
   const { settings, updateSettings, resetSettings } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<'general' | 'completion' | 'graph' | 'about'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'reminder' | 'completion' | 'graph' | 'about'>('general');
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [desktopPermission, setDesktopPermission] = useState<string>('default');
+
+  // Check desktop notification permission on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setDesktopPermission(Notification.permission);
+    }
+  }, []);
 
   const handleConfirmReset = () => {
     resetSettings();
     toast.success('已成功恢复所有系统默认配置');
+  };
+
+  const handleRequestNotification = async () => {
+    const perm = await requestDesktopNotificationPermission();
+    setDesktopPermission(perm);
+    if (perm === 'granted') {
+      updateSettings({ enableDesktopNotification: true });
+      toast.success('已获得系统桌面通知权限，已自动开启桌面推送！');
+    } else if (perm === 'denied') {
+      updateSettings({ enableDesktopNotification: false });
+      toast.error('桌面通知权限已被浏览器拒绝，请在浏览器地址栏权限设置中允许通知。');
+    }
+  };
+
+  const handleTestSound = () => {
+    playChimeSound();
+    toast.info('正在试听：温和提示双音和弦');
   };
 
   return (
@@ -33,7 +67,7 @@ export function SettingsView() {
         <div>
           <h2 className="text-base md:text-lg font-bold text-zinc-100">系统偏好设置</h2>
           <p className="mt-1 text-xs text-zinc-400">
-            个性化配置双模存储引擎、字体排版、任务依赖策略与图拓扑参数。
+            个性化配置双模存储引擎、字体排版、临期主动提醒、任务依赖策略与图拓扑参数。
           </p>
         </div>
         <button
@@ -59,6 +93,18 @@ export function SettingsView() {
           >
             <Sliders className="h-4 w-4" />
             <span>常规偏好</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('reminder')}
+            className={`flex flex-shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition ${
+              activeTab === 'reminder'
+                ? 'bg-zinc-900 text-zinc-100 font-semibold'
+                : 'text-zinc-400 hover:bg-zinc-900/40 hover:text-zinc-200'
+            }`}
+          >
+            <Bell className="h-4 w-4" />
+            <span>临期提醒</span>
           </button>
 
           <button
@@ -100,6 +146,7 @@ export function SettingsView() {
 
         {/* Right Tab Content Panel */}
         <div className="flex-1 overflow-y-auto rounded-xl border border-zinc-900 bg-zinc-900/30 p-4 sm:p-6">
+          {/* TAB 1: 常规偏好 */}
           {activeTab === 'general' && (
             <div className="max-w-2xl space-y-6">
               {/* Storage Mode Selector */}
@@ -177,41 +224,97 @@ export function SettingsView() {
                 </div>
               </div>
 
-              {/* Custom Font Size Selector */}
+              {/* Custom Font Size Selector (6 tiers + 30-inch Screen + Custom Slider) */}
               <div className="border-t border-zinc-800/80 pt-5">
-                <div className="flex items-center gap-2">
-                  <Type className="h-4 w-4 text-zinc-400" />
-                  <label className="block text-xs font-semibold text-zinc-200">
-                    全局字体显示大小
-                  </label>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Type className="h-4 w-4 text-zinc-400" />
+                    <label className="block text-xs font-semibold text-zinc-200">
+                      全局字体大小（完美适配 30 寸超大屏与各类高分屏）
+                    </label>
+                  </div>
+                  {settings.customFontSizePx && (
+                    <button
+                      onClick={() => {
+                        updateSettings({ customFontSizePx: null });
+                        toast.success('已重置为预设档位字号');
+                      }}
+                      className="text-[11px] text-blue-400 hover:underline"
+                    >
+                      使用标准预设档位
+                    </button>
+                  )}
                 </div>
                 <p className="mt-1 text-xs text-zinc-500">
-                  动态调节应用根节点字体基准，自适应适配大、中、小各类屏幕分辨率。
+                  选用标准原生中文字体族（苹方、微软雅黑、思源黑体），动态缩放根节点字号，让 30 寸显示器及大屏清晰易读。
                 </p>
-                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+
+                {/* 6 Preset Cards */}
+                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   {[
-                    { key: 'compact', label: '紧凑', sizeText: '13px', desc: '信息密集' },
-                    { key: 'standard', label: '标准', sizeText: '14px', desc: '默认主流' },
-                    { key: 'comfortable', label: '舒适', sizeText: '15px', desc: '减缓眼疲劳' },
-                    { key: 'large', label: '大字号', sizeText: '16px', desc: '大屏与触控' },
-                  ].map((f) => (
-                    <button
-                      key={f.key}
-                      onClick={() => {
-                        updateSettings({ fontSize: f.key as any });
-                        toast.success(`字体已调整为：${f.label} (${f.sizeText})`);
+                    { key: 'compact', label: '紧凑', sizeText: '14px', desc: '高密度信息排版' },
+                    { key: 'standard', label: '标准', sizeText: '16px', desc: '主流笔记本/显示器' },
+                    { key: 'comfortable', label: '舒适', sizeText: '18px', desc: '减缓长时间眼疲劳' },
+                    { key: 'large', label: '大字号', sizeText: '20px', desc: '大屏与触控易触达' },
+                    { key: 'huge', label: '超大屏', sizeText: '22px', desc: '30寸及以上显示器推荐' },
+                    { key: 'cinema', label: '远距演示', sizeText: '24px', desc: '4K超大屏或演示汇报' },
+                  ].map((f) => {
+                    const isSelected =
+                      !settings.customFontSizePx && settings.fontSize === f.key;
+                    return (
+                      <button
+                        key={f.key}
+                        onClick={() => {
+                          updateSettings({
+                            fontSize: f.key as FontSizeOption,
+                            customFontSizePx: null,
+                          });
+                          toast.success(`字体已调整为：${f.label} (${f.sizeText})`);
+                        }}
+                        className={`flex flex-col items-center justify-center rounded-lg border py-2.5 px-2 text-xs transition ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-950/30 text-blue-400 font-semibold shadow-sm'
+                            : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                        }`}
+                      >
+                        <span className="text-xs">{f.label}</span>
+                        <span className="text-[10px] opacity-70 mt-0.5 font-mono">{f.sizeText}</span>
+                        <span className="text-[9px] text-zinc-500 mt-1 text-center">{f.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom Pixel Size Slider */}
+                <div className="mt-4 rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-zinc-300">自定义精确像素调节</span>
+                    <span className="font-mono text-blue-400 font-semibold">
+                      {settings.customFontSizePx
+                        ? `${settings.customFontSizePx}px (自定义激活中)`
+                        : `${FONT_SIZE_MAP[settings.fontSize]} (预设值)`}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-3">
+                    <span className="text-[11px] text-zinc-500">12px</span>
+                    <input
+                      type="range"
+                      min={12}
+                      max={28}
+                      step={1}
+                      value={
+                        settings.customFontSizePx ||
+                        parseInt(FONT_SIZE_MAP[settings.fontSize], 10) ||
+                        16
+                      }
+                      onChange={(e) => {
+                        const px = parseInt(e.target.value, 10);
+                        updateSettings({ customFontSizePx: px });
                       }}
-                      className={`flex flex-col items-center justify-center rounded-lg border py-2.5 px-2 text-xs transition ${
-                        settings.fontSize === f.key
-                          ? 'border-blue-500 bg-blue-950/30 text-blue-400 font-semibold shadow-sm'
-                          : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
-                      }`}
-                    >
-                      <span className="text-xs">{f.label}</span>
-                      <span className="text-[10px] opacity-70 mt-0.5 font-mono">{f.sizeText}</span>
-                      <span className="text-[9px] text-zinc-500 mt-1">{f.desc}</span>
-                    </button>
-                  ))}
+                      className="h-1.5 flex-1 cursor-pointer appearance-none rounded-lg bg-zinc-800 accent-blue-500"
+                    />
+                    <span className="text-[11px] text-zinc-500">28px</span>
+                  </div>
                 </div>
               </div>
 
@@ -225,9 +328,9 @@ export function SettingsView() {
                 </p>
                 <div className="mt-2 grid grid-cols-3 gap-3">
                   {[
-                    { key: 'list', label: '列表视图 (List)' },
-                    { key: 'tree', label: '树状拆解 (Tree)' },
-                    { key: 'graph', label: '依赖关系图 (Graph)' },
+                    { key: 'list', label: '列表视图' },
+                    { key: 'tree', label: '层级树拆解' },
+                    { key: 'graph', label: '依赖拓扑图' },
                   ].map((v) => (
                     <button
                       key={v.key}
@@ -263,8 +366,8 @@ export function SettingsView() {
                   }
                   className="mt-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 focus:outline-none"
                 >
-                  <option value="TODO">待办 (TODO) - 立即纳入执行计划</option>
-                  <option value="INBOX">收件箱 (INBOX) - 暂存等待细化整理</option>
+                  <option value="TODO">待办 - 立即纳入执行计划</option>
+                  <option value="INBOX">收件箱 - 暂存等待细化整理</option>
                 </select>
               </div>
 
@@ -286,6 +389,164 @@ export function SettingsView() {
             </div>
           )}
 
+          {/* TAB 2: 临期主动提醒 */}
+          {activeTab === 'reminder' && (
+            <div className="max-w-xl space-y-6">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-200">
+                  任务规定时间临期主动提醒
+                </label>
+                <p className="mt-1 text-xs text-zinc-500">
+                  当网页在浏览器中运行时，系统会自动在任务截止规定时间到达前主动发出多维度提醒（页面浮动卡片、温和提示音与系统桌面通知）。
+                </p>
+              </div>
+
+              {/* Reminder Master Switch */}
+              <div className="flex items-center justify-between rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-4">
+                <div>
+                  <span className="text-xs font-semibold text-zinc-200">
+                    开启临期主动预警机制
+                  </span>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    后台实时监测未完成任务的截止时间，即将超时前主动提示。
+                  </p>
+                </div>
+                <Checkbox
+                  checked={settings.enableDeadlineReminder}
+                  onCheckedChange={(checked) => {
+                    updateSettings({ enableDeadlineReminder: checked });
+                    toast.success(checked ? '已开启临期主动预警' : '已停用临期提醒');
+                  }}
+                />
+              </div>
+
+              {/* Reminder Lead Time */}
+              <div className="border-t border-zinc-800/80 pt-5">
+                <label className="block text-xs font-semibold text-zinc-200">
+                  提前提醒触发时长
+                </label>
+                <p className="mt-1 text-xs text-zinc-500">
+                  在任务截止时间到来之前的多少分钟提前向您主动提醒。
+                </p>
+                <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {[
+                    { minutes: 15, label: '提前 15 分钟' },
+                    { minutes: 30, label: '提前 30 分钟 (推荐)' },
+                    { minutes: 60, label: '提前 1 小时' },
+                    { minutes: 120, label: '提前 2 小时' },
+                  ].map((item) => (
+                    <button
+                      key={item.minutes}
+                      onClick={() => {
+                        updateSettings({ reminderLeadMinutes: item.minutes });
+                        toast.success(`已设置为任务截止前 ${item.minutes} 分钟主动提醒`);
+                      }}
+                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                        settings.reminderLeadMinutes === item.minutes
+                          ? 'border-blue-500 bg-blue-950/30 text-blue-400 font-semibold'
+                          : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sound Alert Toggle & Test */}
+              <div className="border-t border-zinc-800/80 pt-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="h-4 w-4 text-amber-400" />
+                    <div>
+                      <span className="text-xs font-semibold text-zinc-200">
+                        播放温和双音和弦提示音
+                      </span>
+                      <p className="text-xs text-zinc-500">
+                        采用浏览器原生合成和弦，无需外部音频文件，离线即响。
+                      </p>
+                    </div>
+                  </div>
+                  <Checkbox
+                    checked={settings.enableAudioAlert}
+                    onCheckedChange={(checked) =>
+                      updateSettings({ enableAudioAlert: checked })
+                    }
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={handleTestSound}
+                    className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                  >
+                    <Volume2 className="h-3.5 w-3.5 text-amber-400" />
+                    <span>试听提示音</span>
+                  </button>
+                  <span className="text-[11px] text-zinc-500">
+                    点击测试当前环境下的声音播放效果
+                  </span>
+                </div>
+              </div>
+
+              {/* Desktop Native Notification */}
+              <div className="border-t border-zinc-800/80 pt-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Monitor className="h-4 w-4 text-blue-400" />
+                    <div>
+                      <span className="text-xs font-semibold text-zinc-200">
+                        操作系统原生桌面通知推送
+                      </span>
+                      <p className="text-xs text-zinc-500">
+                        即使浏览器最小化或切到其他工作软件，依然在屏幕右下角弹出系统通知。
+                      </p>
+                    </div>
+                  </div>
+                  <Checkbox
+                    checked={settings.enableDesktopNotification}
+                    onCheckedChange={(checked) => {
+                      if (checked && desktopPermission !== 'granted') {
+                        handleRequestNotification();
+                      } else {
+                        updateSettings({ enableDesktopNotification: checked });
+                      }
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-zinc-800/60 bg-zinc-900/30 p-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    {desktopPermission === 'granted' ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 text-green-400" />
+                        <span className="text-green-300">桌面通知权限：已授权</span>
+                      </>
+                    ) : desktopPermission === 'denied' ? (
+                      <>
+                        <AlertCircle className="h-4 w-4 text-red-400" />
+                        <span className="text-red-300">桌面通知权限：已被浏览器拦截</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-4 w-4 text-yellow-400" />
+                        <span className="text-yellow-300">桌面通知权限：尚未授权</span>
+                      </>
+                    )}
+                  </div>
+                  {desktopPermission !== 'granted' && (
+                    <button
+                      onClick={handleRequestNotification}
+                      className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-blue-500"
+                    >
+                      申请授权
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: 依赖与完成策略 */}
           {activeTab === 'completion' && (
             <div className="max-w-xl space-y-6">
               <div>
@@ -300,7 +561,7 @@ export function SettingsView() {
                     {
                       key: 'SUGGESTION',
                       title: '建议模式 (推荐)',
-                      desc: '发现未完成前置任务时弹出确认，询问是否一并完成所有前置依赖；若仅完成当前任务，将触发二次逻辑防错警告。',
+                      desc: '发现未完成前置任务时弹出确认，询问是否一并完成所有前置依赖；若强行仅完成当前任务，将触发二次拓扑防错警告。',
                     },
                     {
                       key: 'STRICT',
@@ -357,7 +618,7 @@ export function SettingsView() {
                       严格循环依赖强拦截
                     </span>
                     <p className="mt-0.5 text-xs text-zinc-500">
-                      在前端和后端服务双重进行实时 DFS 探测，禁止产生任何拓扑环路。
+                      在前端和后端服务双重进行实时深度优先遍历探测，禁止产生任何拓扑闭环。
                     </p>
                   </div>
                   <Checkbox
@@ -373,12 +634,13 @@ export function SettingsView() {
             </div>
           )}
 
+          {/* TAB 4: 画布与图表偏好 */}
           {activeTab === 'graph' && (
             <div className="max-w-xl space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-xs font-semibold text-zinc-200">
-                    默认显示缩略小地图 (MiniMap)
+                    默认显示缩略鹰眼小地图
                   </span>
                   <p className="mt-0.5 text-xs text-zinc-500">
                     在依赖图右下角显示全局鹰眼小地图，方便大型图快速定位。
@@ -398,8 +660,8 @@ export function SettingsView() {
                 </label>
                 <div className="mt-2 flex gap-3">
                   {[
-                    { key: 'smoothstep', label: '平滑阶梯折线 (Smoothstep)' },
-                    { key: 'bezier', label: '贝塞尔自然曲线 (Bezier)' },
+                    { key: 'smoothstep', label: '平滑阶梯折线' },
+                    { key: 'bezier', label: '贝塞尔自然曲线' },
                   ].map((style) => (
                     <button
                       key={style.key}
@@ -420,32 +682,33 @@ export function SettingsView() {
             </div>
           )}
 
+          {/* TAB 5: 关于系统 */}
           {activeTab === 'about' && (
             <div className="max-w-xl space-y-4 text-xs text-zinc-300">
               <div className="rounded-lg border border-zinc-800 bg-zinc-950/80 p-4 space-y-2">
                 <div className="flex items-center gap-2 font-semibold text-zinc-100">
-                  <span>Task Graph 可视化任务依赖系统</span>
+                  <span>任务拓扑图可视化系统</span>
                   <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] text-blue-400">
-                    v1.0.0
+                    版本 1.0.0
                   </span>
                 </div>
                 <p className="text-zinc-400 leading-relaxed">
-                  基于 DAG 有向无环图、Parent-Child 树形拆解与关键路径推理的高性能任务管理系统。支持 PostgreSQL 服务端持久化与 LocalStorage 离线双模存储。
+                  基于有向无环图依赖拓扑、父子层级树形拆解与关键路径推理的高性能任务管理系统。支持本地数据库持久化与浏览器离线双模存储。
                 </p>
               </div>
 
               <div className="space-y-2 rounded-lg border border-zinc-800/80 bg-zinc-900/30 p-4 text-[11px] text-zinc-400">
                 <div className="flex justify-between">
-                  <span>前端技术栈</span>
-                  <span className="text-zinc-200">Next.js 15, React 19, Tailwind CSS 4, React Flow 12</span>
+                  <span>前端技术架构</span>
+                  <span className="text-zinc-200">Next.js 15 全栈框架、React 19、Tailwind CSS 4、React Flow 12</span>
                 </div>
                 <div className="flex justify-between">
                   <span>存储持久化引擎</span>
-                  <span className="text-zinc-200">PostgreSQL 17 (Drizzle ORM) + LocalStorage (离线)</span>
+                  <span className="text-zinc-200">本地数据库持久化 (PostgreSQL) + 浏览器存储 (LocalStorage)</span>
                 </div>
                 <div className="flex justify-between">
                   <span>开源授权协议</span>
-                  <span className="text-green-400 font-semibold">MIT License</span>
+                  <span className="text-green-400 font-semibold">MIT 开源授权协议</span>
                 </div>
               </div>
             </div>
