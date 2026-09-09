@@ -25,6 +25,8 @@ import { TaskEdge } from './task-edge';
 import { GraphToolbar } from './graph-toolbar';
 import { GraphContextMenu, type ContextMenuState } from './graph-context-menu';
 import { GraphCuttingOverlay } from './graph-cutting-overlay';
+import { GraphSearchBar } from './graph-search-bar';
+import { GraphExportDialog } from './graph-export-dialog';
 import { lineSegmentsIntersect } from '@/lib/cutting-math';
 import { computeGraphLayout } from '@/lib/graph-layout';
 import { detectCycle } from '@/lib/graph-algorithms/cycle-detection';
@@ -48,6 +50,7 @@ const edgeTypes = {
 };
 
 const POSITIONS_STORAGE_KEY = 'task_graph_user_node_positions';
+const COLORS_STORAGE_KEY = 'task_graph_user_node_colors';
 
 function getSavedPositions(): Record<string, { x: number; y: number }> {
   if (typeof window === 'undefined') return {};
@@ -70,6 +73,23 @@ function savePositions(nodesList: Node[]) {
   } catch {}
 }
 
+function getSavedColors(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(COLORS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveColors(colors: Record<string, string>) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(COLORS_STORAGE_KEY, JSON.stringify(colors));
+  } catch {}
+}
+
 interface TaskGraphViewProps {
   tasks: Task[];
   relations: TaskRelation[];
@@ -86,11 +106,28 @@ function TaskGraphFlow({
   const { openDrawer } = useUIStore();
   const { settings } = useSettingsStore();
   const { pushAction, undo, canUndo, lastActionDescription } = useUndoStore();
-  const { fitView, screenToFlowPosition } = useReactFlow();
+  const { fitView, setCenter, screenToFlowPosition } = useReactFlow();
 
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [showBlockedOnly, setShowBlockedOnly] = useState(false);
   const [hideCompleted, setHideCompleted] = useState(false);
+
+  // Custom node color mapping (persisted in localStorage)
+  const [nodeColors, setNodeColors] = useState<Record<string, string>>(() => getSavedColors());
+
+  // Canvas search state
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [matchedNodeIds, setMatchedNodeIds] = useState<Set<string>>(new Set());
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+
+  // Export diagram dialog state
+  const [exportOpen, setExportOpen] = useState(false);
+
+  // Spawning dependent/prerequisite task state
+  const [spawnConfig, setSpawnConfig] = useState<{
+    task: Task;
+    direction: 'PREV' | 'NEXT';
+  } | null>(null);
 
   // Right-click context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
@@ -117,7 +154,7 @@ function TaskGraphFlow({
     }
   }, [undo, lastActionDescription, onRefresh]);
 
-  // Global Ctrl+Z / Cmd+Z shortcut listener
+  // Global Ctrl+Z / Cmd+Z and Ctrl+F / Cmd+F shortcut listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isInput =
@@ -129,6 +166,9 @@ function TaskGraphFlow({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
         handleUndo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
       }
     };
 
@@ -638,19 +678,35 @@ function TaskGraphFlow({
       }
 
       return initialNodes.map((n) => {
+        const customColor = nodeColors[n.id];
+        const isSearchMatched = searchOpen && matchedNodeIds.has(n.id);
+        const isSearchFocused = searchOpen && focusedNodeId === n.id;
+        const searchActive = searchOpen && matchedNodeIds.size > 0;
+
+        const baseNode = {
+          ...n,
+          data: {
+            ...n.data,
+            customColor,
+            isSearchMatched,
+            isSearchFocused,
+            searchActive,
+          },
+        };
+
         // If user explicitly enabled auto layout on data change, take newly computed layout
         if (settings.autoLayoutOnDataChange) {
-          return n;
+          return baseNode;
         }
         // Otherwise, preserve user dragged/custom coordinates
         const saved = currentPosMap.get(n.id) || savedPositions[n.id];
         if (saved) {
           return {
-            ...n,
+            ...baseNode,
             position: saved,
           };
         }
-        return n;
+        return baseNode;
       }) as Node[];
     });
 
@@ -677,10 +733,47 @@ function TaskGraphFlow({
     settings.autoLayoutOnDataChange,
     relations,
     tasks,
+    nodeColors,
+    searchOpen,
+    matchedNodeIds,
+    focusedNodeId,
     handleDeleteEdge,
     setNodes,
     setEdges,
   ]);
+
+  // Sync dynamic node styling (custom colors, search highlights)
+  useEffect(() => {
+    setNodes((currentNodes) =>
+      currentNodes.map((n) => {
+        const customColor = nodeColors[n.id];
+        const isSearchMatched = searchOpen && matchedNodeIds.has(n.id);
+        const isSearchFocused = searchOpen && focusedNodeId === n.id;
+        const searchActive = searchOpen && matchedNodeIds.size > 0;
+
+        const currentData = n.data as any;
+        if (
+          currentData?.customColor === customColor &&
+          currentData?.isSearchMatched === isSearchMatched &&
+          currentData?.isSearchFocused === isSearchFocused &&
+          currentData?.searchActive === searchActive
+        ) {
+          return n;
+        }
+
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            customColor,
+            isSearchMatched,
+            isSearchFocused,
+            searchActive,
+          },
+        };
+      }),
+    );
+  }, [nodeColors, searchOpen, matchedNodeIds, focusedNodeId, setNodes]);
 
   // 4. Handle connecting a new dependency edge
   const onConnect = useCallback(
@@ -834,8 +927,18 @@ function TaskGraphFlow({
       criticalNodeIds,
       criticalEdgeIds,
     );
-    setNodes(layout.nodes as Node[]);
-    savePositions(layout.nodes as Node[]);
+    const decoratedNodes = (layout.nodes as Node[]).map((n) => ({
+      ...n,
+      data: {
+        ...n.data,
+        customColor: nodeColors[n.id],
+        isSearchMatched: searchOpen && matchedNodeIds.has(n.id),
+        isSearchFocused: searchOpen && focusedNodeId === n.id,
+        searchActive: searchOpen && matchedNodeIds.size > 0,
+      },
+    }));
+    setNodes(decoratedNodes);
+    savePositions(decoratedNodes);
 
     const customEdges = layout.edges.map((e) => {
       const rel = relations.find((r) => r.id === e.id);
@@ -887,6 +990,10 @@ function TaskGraphFlow({
     criticalEdgeIds,
     nodes,
     tasks,
+    nodeColors,
+    searchOpen,
+    matchedNodeIds,
+    focusedNodeId,
     handleDeleteEdge,
     pushAction,
     setNodes,
@@ -987,6 +1094,145 @@ function TaskGraphFlow({
     }
   };
 
+  // 10. Canvas quick search callbacks
+  const handleHighlightNodes = useCallback(
+    (matchedIds: Set<string>, focusedId: string | null) => {
+      setMatchedNodeIds(matchedIds);
+      setFocusedNodeId(focusedId);
+    },
+    [],
+  );
+
+  const handleFocusNode = useCallback(
+    (taskId: string) => {
+      const targetNode = nodes.find((n) => n.id === taskId);
+      if (targetNode) {
+        setCenter(targetNode.position.x + 140, targetNode.position.y + 60, {
+          duration: 350,
+          zoom: 1.05,
+        });
+      }
+    },
+    [nodes, setCenter],
+  );
+
+  // 11. Color coding action with undo
+  const handleSetNodeColor = useCallback(
+    (taskId: string, color: string | null) => {
+      const prevColor = nodeColors[taskId] || null;
+      setNodeColors((prev) => {
+        const updated = { ...prev };
+        if (!color) {
+          delete updated[taskId];
+        } else {
+          updated[taskId] = color;
+        }
+        saveColors(updated);
+        return updated;
+      });
+
+      const task = tasks.find((t) => t.id === taskId);
+      const title = task?.title || '任务节点';
+
+      pushAction({
+        description: color ? `设置色彩标记 "${title}"` : `清除色彩标记 "${title}"`,
+        undo: () => {
+          setNodeColors((prev) => {
+            const updated = { ...prev };
+            if (prevColor) {
+              updated[taskId] = prevColor;
+            } else {
+              delete updated[taskId];
+            }
+            saveColors(updated);
+            return updated;
+          });
+        },
+      });
+
+      toast.success(color ? `已为 "${title}" 设置色彩标记` : `已清除色彩标记`);
+    },
+    [nodeColors, tasks, pushAction],
+  );
+
+  // 12. Spawning Dependent / Prerequisite Tasks
+  const handleSpawnConfirm = async (title: string) => {
+    if (!spawnConfig) return;
+    const { task: parentTask, direction } = spawnConfig;
+    const parentNode = nodes.find((n) => n.id === parentTask.id);
+    const baseX = parentNode ? parentNode.position.x : 0;
+    const baseY = parentNode ? parentNode.position.y : 0;
+
+    let targetX = direction === 'NEXT' ? baseX + 340 : baseX - 340;
+    let targetY = baseY;
+
+    // Shift vertically if overlapping with existing nodes
+    while (
+      nodes.some(
+        (n) =>
+          Math.abs(n.position.x - targetX) < 40 &&
+          Math.abs(n.position.y - targetY) < 40,
+      )
+    ) {
+      targetY += 60;
+    }
+
+    // Create the new task
+    const createRes = await dataAdapter.createTask({
+      title,
+      status: 'TODO',
+      projectId: parentTask.projectId,
+    });
+
+    if (!createRes.success || !createRes.data?.id) {
+      toast.error(createRes.error || '创建衍生任务失败');
+      return;
+    }
+
+    const newTaskId = createRes.data.id;
+
+    // Record position for the new node
+    const posMap = getSavedPositions();
+    posMap[newTaskId] = { x: Math.round(targetX), y: Math.round(targetY) };
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(POSITIONS_STORAGE_KEY, JSON.stringify(posMap));
+      } catch {}
+    }
+
+    // NEXT: newTaskId (dependent) DEPENDS_ON parentTask.id (prerequisite)
+    // PREV: parentTask.id (dependent) DEPENDS_ON newTaskId (prerequisite)
+    const dependentId = direction === 'NEXT' ? newTaskId : parentTask.id;
+    const dependencyId = direction === 'NEXT' ? parentTask.id : newTaskId;
+
+    await dataAdapter.addDependency(dependentId, dependencyId);
+
+    // Register composite undo action
+    pushAction({
+      description:
+        direction === 'NEXT'
+          ? `衍生后续任务 "${title}"`
+          : `衍生前置任务 "${title}"`,
+      undo: async () => {
+        await dataAdapter.deleteTask(newTaskId, true);
+        onRefresh?.();
+      },
+    });
+
+    toast.success(
+      direction === 'NEXT'
+        ? `已成功衍生后续任务: ${title}`
+        : `已成功衍生前置任务: ${title}`,
+    );
+    setSpawnConfig(null);
+    onRefresh?.();
+
+    // Smooth camera focus to new node
+    setTimeout(() => {
+      setCenter(targetX + 140, targetY + 60, { duration: 400, zoom: 1.05 });
+    }, 80);
+  };
+
   return (
     <div className="relative h-full w-full bg-zinc-950">
       <ReactFlow
@@ -1040,6 +1286,8 @@ function TaskGraphFlow({
             onUndo={handleUndo}
             canUndo={canUndo}
             lastActionDesc={lastActionDescription}
+            onOpenSearch={() => setSearchOpen((prev) => !prev)}
+            onOpenExport={() => setExportOpen(true)}
           />
         </Panel>
 
@@ -1063,6 +1311,15 @@ function TaskGraphFlow({
         )}
       </ReactFlow>
 
+      {/* Floating Canvas Quick Search Bar (Ctrl+F) */}
+      <GraphSearchBar
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        tasks={tasks}
+        onHighlightNodes={handleHighlightNodes}
+        onFocusNode={handleFocusNode}
+      />
+
       {/* Right-click Drag Laser Cutter Overlay */}
       <GraphCuttingOverlay
         active={isCutting}
@@ -1085,6 +1342,32 @@ function TaskGraphFlow({
         onUndo={handleUndo}
         canUndo={canUndo}
         lastActionDesc={lastActionDescription}
+        onSpawnDependent={(task, direction) => setSpawnConfig({ task, direction })}
+        onSetColor={handleSetNodeColor}
+        currentColor={contextMenu.task ? nodeColors[contextMenu.task.id] || null : null}
+      />
+
+      {/* Modal Dialog for Spawning Dependent/Prerequisite Task */}
+      <PromptDialog
+        open={!!spawnConfig}
+        onOpenChange={(open) => !open && setSpawnConfig(null)}
+        title={
+          spawnConfig?.direction === 'NEXT'
+            ? '衍生后续依赖任务'
+            : '衍生前置依赖任务'
+        }
+        description={
+          spawnConfig?.direction === 'NEXT'
+            ? `在 "${spawnConfig.task.title}" 之后创建新任务，并自动建立依赖连线`
+            : `在 "${spawnConfig?.task.title}" 之前创建前置任务，并自动建立依赖连线`
+        }
+        placeholder={
+          spawnConfig?.direction === 'NEXT'
+            ? '输入后续依赖任务名称...'
+            : '输入前置依赖任务名称...'
+        }
+        confirmText="立即衍生"
+        onConfirm={handleSpawnConfirm}
       />
 
       {/* Modal Dialog for Canvas Right-Click: Create Task */}
@@ -1127,6 +1410,14 @@ function TaskGraphFlow({
         confirmText="移入回收站"
         cancelText="取消"
         onConfirm={handleDeleteTaskConfirm}
+      />
+
+      {/* Graph Export Dialog (Mermaid / JSON) */}
+      <GraphExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        tasks={tasks}
+        relations={relations}
       />
     </div>
   );

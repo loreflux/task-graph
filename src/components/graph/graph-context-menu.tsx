@@ -13,6 +13,9 @@ import {
   Trash2,
   X,
   Undo2,
+  ArrowRight,
+  ArrowLeft,
+  Palette,
 } from 'lucide-react';
 
 export interface ContextMenuState {
@@ -39,6 +42,9 @@ interface GraphContextMenuProps {
   onUndo?: () => void;
   canUndo?: boolean;
   lastActionDesc?: string | null;
+  onSpawnDependent?: (task: Task, direction: 'PREV' | 'NEXT') => void;
+  onSetColor?: (taskId: string, color: string | null) => void;
+  currentColor?: string | null;
 }
 
 export function GraphContextMenu({
@@ -55,6 +61,9 @@ export function GraphContextMenu({
   onUndo,
   canUndo = false,
   lastActionDesc = null,
+  onSpawnDependent,
+  onSetColor,
+  currentColor = null,
 }: GraphContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -89,7 +98,7 @@ export function GraphContextMenu({
 
   // Screen collision prevention: ensure menu doesn't overflow screen edges
   const menuWidth = 210;
-  const menuHeight = menu.type === 'node' ? 260 : menu.type === 'edge' ? 120 : 200;
+  const menuHeight = menu.type === 'node' ? 420 : menu.type === 'edge' ? 120 : 200;
 
   const adjustedX =
     typeof window !== 'undefined' && menu.x + menuWidth > window.innerWidth
@@ -200,6 +209,93 @@ export function GraphContextMenu({
               <GitBranch className="h-3.5 w-3.5 text-indigo-400" />
               <span>添加分解子任务</span>
             </button>
+
+            {/* Spawning options */}
+            <div className="my-1 border-t border-zinc-800/80" />
+            <div className="px-2.5 py-0.5 text-[10px] font-semibold text-zinc-500">
+              衍生时序依赖
+            </div>
+
+            <button
+              onClick={() => {
+                if (onSpawnDependent && menu.task) {
+                  onSpawnDependent(menu.task, 'NEXT');
+                }
+                onClose();
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-zinc-200 transition hover:bg-zinc-800 hover:text-white"
+            >
+              <ArrowRight className="h-3.5 w-3.5 text-blue-400" />
+              <span>衍生后续依赖任务</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (onSpawnDependent && menu.task) {
+                  onSpawnDependent(menu.task, 'PREV');
+                }
+                onClose();
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-zinc-200 transition hover:bg-zinc-800 hover:text-white"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 text-indigo-400" />
+              <span>衍生前置依赖任务</span>
+            </button>
+
+            {/* Color Palette */}
+            <div className="my-1 border-t border-zinc-800/80" />
+            <div className="px-2.5 py-1">
+              <div className="flex items-center justify-between text-[10px] font-semibold text-zinc-500 mb-1.5">
+                <span className="flex items-center gap-1">
+                  <Palette className="h-3 w-3" />
+                  <span>色彩标记</span>
+                </span>
+                {currentColor && (
+                  <button
+                    onClick={() => {
+                      if (onSetColor && menu.task) {
+                        onSetColor(menu.task.id, null);
+                      }
+                      onClose();
+                    }}
+                    className="text-[10px] text-zinc-400 hover:text-zinc-200 transition"
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 py-0.5">
+                {[
+                  { key: null, name: '默认', bg: 'bg-zinc-700 border-zinc-600' },
+                  { key: 'blue', name: '蓝色', bg: 'bg-blue-500 border-blue-400' },
+                  { key: 'emerald', name: '绿色', bg: 'bg-emerald-500 border-emerald-400' },
+                  { key: 'amber', name: '黄色', bg: 'bg-amber-500 border-amber-400' },
+                  { key: 'rose', name: '红色', bg: 'bg-rose-500 border-rose-400' },
+                  { key: 'purple', name: '紫色', bg: 'bg-purple-500 border-purple-400' },
+                  { key: 'cyan', name: '青色', bg: 'bg-cyan-500 border-cyan-400' },
+                ].map((item) => {
+                  const isSelected = (currentColor || null) === item.key;
+                  return (
+                    <button
+                      key={item.key || 'default'}
+                      type="button"
+                      title={item.name}
+                      onClick={() => {
+                        if (onSetColor && menu.task) {
+                          onSetColor(menu.task.id, item.key);
+                        }
+                        onClose();
+                      }}
+                      className={`h-4 w-4 rounded-full border ${item.bg} transition-all duration-150 hover:scale-125 flex items-center justify-center ${
+                        isSelected ? 'ring-2 ring-white ring-offset-1 ring-offset-zinc-950 scale-110' : ''
+                      }`}
+                    >
+                      {item.key === null && <span className="text-[8px] text-zinc-400 font-bold leading-none">×</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             <div className="my-1 border-t border-zinc-800/80" />
 

@@ -11,6 +11,8 @@ import {
   Sparkles,
   Undo2,
   Scissors,
+  Search,
+  Share2,
 } from 'lucide-react';
 
 interface GraphToolbarProps {
@@ -25,6 +27,8 @@ interface GraphToolbarProps {
   onUndo?: () => void;
   canUndo?: boolean;
   lastActionDesc?: string | null;
+  onOpenSearch?: () => void;
+  onOpenExport?: () => void;
 }
 
 export function GraphToolbar({
@@ -39,6 +43,8 @@ export function GraphToolbar({
   onUndo,
   canUndo = false,
   lastActionDesc = null,
+  onOpenSearch,
+  onOpenExport,
 }: GraphToolbarProps) {
   return (
     <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/90 p-1.5 shadow-xl backdrop-blur">
@@ -70,6 +76,17 @@ export function GraphToolbar({
         <Maximize2 className="h-3.5 w-3.5" />
         <span>适应视野</span>
       </button>
+
+      {onOpenSearch && (
+        <button
+          onClick={onOpenSearch}
+          title="在画布中搜索任务节点 (Ctrl+F)"
+          className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+        >
+          <Search className="h-3.5 w-3.5 text-zinc-400" />
+          <span>搜索</span>
+        </button>
+      )}
 
       <div className="mx-1 h-4 w-px bg-zinc-800" />
 
@@ -117,6 +134,17 @@ export function GraphToolbar({
           </>
         )}
       </button>
+
+      {onOpenExport && (
+        <button
+          onClick={onOpenExport}
+          title="导出图谱为 Mermaid 流程图或标准 JSON 数据"
+          className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-950/30 hover:text-emerald-300 transition"
+        >
+          <Share2 className="h-3.5 w-3.5" />
+          <span>导出</span>
+        </button>
+      )}
 
       <div className="mx-1 h-4 w-px bg-zinc-800" />
 
