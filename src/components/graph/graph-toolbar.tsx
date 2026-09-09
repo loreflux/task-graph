@@ -10,6 +10,7 @@ import {
   Eye,
   Sparkles,
   Undo2,
+  Scissors,
 } from 'lucide-react';
 
 interface GraphToolbarProps {
@@ -116,6 +117,17 @@ export function GraphToolbar({
           </>
         )}
       </button>
+
+      <div className="mx-1 h-4 w-px bg-zinc-800" />
+
+      {/* Slicing tool tip */}
+      <div
+        title="右键按住拖拽划线：如同激光刀片般直接切断经过的依赖连线（支持 Ctrl+Z 撤销）"
+        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-400 bg-zinc-900/60 border border-zinc-800/80 cursor-help transition hover:text-red-300 hover:border-red-900/50"
+      >
+        <Scissors className="h-3 w-3 text-red-400" />
+        <span className="hidden md:inline text-[11px]">右键划线断开连线</span>
+      </div>
     </div>
   );
 }

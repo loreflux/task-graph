@@ -9,7 +9,6 @@ import {
   type EdgeProps,
 } from '@xyflow/react';
 import { useSettingsStore } from '@/stores/settings-store';
-import { X } from 'lucide-react';
 
 export interface TaskEdgeData {
   description?: string | null;
@@ -53,11 +52,6 @@ export function TaskEdge({
       ? getBezierPath(pathParams)
       : getSmoothStepPath(pathParams);
 
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    edgeData?.onDelete?.(id);
-  };
-
   return (
     <>
       <BaseEdge
@@ -67,48 +61,34 @@ export function TaskEdge({
         style={{
           ...style,
           cursor: 'pointer',
+          strokeWidth: selected || isHovered ? 2.5 : 1.5,
+          filter: selected ? 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.6))' : undefined,
+          transition: 'stroke 0.2s ease, stroke-width 0.2s ease',
         }}
       />
 
-      <EdgeLabelRenderer>
-        <div
-          style={{
-            position: 'absolute',
-            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-            pointerEvents: 'all',
-          }}
-          className="nodrag nopan"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          {/* Floating delete button and relationship label */}
+      {edgeData?.description && (
+        <EdgeLabelRenderer>
           <div
-            className={`group flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] transition-all duration-200 shadow-md ${
-              isCritical
-                ? 'border-amber-500/60 bg-zinc-950/95 text-amber-300'
-                : 'border-zinc-700 bg-zinc-950/95 text-zinc-300'
-            } ${
-              selected || isHovered
-                ? 'opacity-100 scale-110 ring-2 ring-red-500/50'
-                : 'opacity-40 hover:opacity-100'
-            }`}
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: 'none',
+            }}
+            className="nodrag nopan"
           >
-            {edgeData?.description && (
-              <span className="max-w-[100px] truncate px-1 text-[9px] text-zinc-400">
-                {edgeData.description}
-              </span>
-            )}
-
-            <button
-              onClick={handleDelete}
-              title="删除此依赖连线"
-              className="flex h-4 w-4 items-center justify-center rounded-full bg-zinc-800 text-zinc-400 transition hover:bg-red-600 hover:text-white"
+            <div
+              className={`rounded-full border px-2 py-0.5 text-[9px] shadow-sm backdrop-blur transition ${
+                isCritical
+                  ? 'border-amber-500/50 bg-zinc-950/90 text-amber-300'
+                  : 'border-zinc-800 bg-zinc-950/85 text-zinc-400'
+              }`}
             >
-              <X className="h-2.5 w-2.5" />
-            </button>
+              <span className="max-w-[120px] truncate">{edgeData.description}</span>
+            </div>
           </div>
-        </div>
-      </EdgeLabelRenderer>
+        </EdgeLabelRenderer>
+      )}
     </>
   );
 }
