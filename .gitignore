@@ -46,3 +46,10 @@ next-env.d.ts
 *.njsproj
 *.sln
 *.sw?
+
+# Private docs, guides and prompts
+*prompt*.md
+GITHUB_GUIDE.md
+docs/
+*.doc
+*.docx
