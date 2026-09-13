@@ -31,6 +31,18 @@ function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 }
 
+function isStrictCyclePrevention(): boolean {
+  if (!isBrowser()) return true;
+  try {
+    const raw = localStorage.getItem('task_graph_settings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.preventCyclesStrict === false) return false;
+    }
+  } catch {}
+  return true;
+}
+
 function parseDates<T extends Record<string, any>>(obj: T): T {
   const res = { ...obj };
   for (const [k, v] of Object.entries(res)) {
@@ -381,11 +393,13 @@ export const localStorageService = {
       throw new Error('该前置依赖已存在');
     }
 
-    const adj = this.buildAdjacencyList();
-    const cycleCheck = detectCycle(adj, sourceTaskId, targetTaskId);
-    if (cycleCheck.hasCycle) {
-      const pathStr = cycleCheck.cyclePath ? cycleCheck.cyclePath.join(' → ') : '';
-      throw new Error(`无法建立依赖关系：会形成循环依赖！\n路径: ${pathStr}`);
+    if (isStrictCyclePrevention()) {
+      const adj = this.buildAdjacencyList();
+      const cycleCheck = detectCycle(adj, sourceTaskId, targetTaskId);
+      if (cycleCheck.hasCycle) {
+        const pathStr = cycleCheck.cyclePath ? cycleCheck.cyclePath.join(' → ') : '';
+        throw new Error(`无法建立依赖关系：会形成循环依赖！\n路径: ${pathStr}`);
+      }
     }
 
     const newRel: TaskRelation = {

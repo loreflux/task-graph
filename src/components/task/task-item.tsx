@@ -7,6 +7,7 @@ import { TaskPriorityBadge } from './task-priority-badge';
 import { formatDateTime } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
 import { useSelectionStore } from '@/stores/selection-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { dataAdapter } from '@/lib/storage/data-adapter';
 import { COMPLETION_STRATEGY } from '@/lib/constants';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -68,18 +69,45 @@ export function TaskItem({
           toast.error(res.error || '操作失败');
         }
       } else {
-        // Check for unfinished dependencies first (Suggestion Mode)
-        const depCheck = await dataAdapter.checkUnfinishedDeps(task.id);
-        if (depCheck.success && depCheck.data && depCheck.data.count > 0) {
-          setPendingDepTasks(depCheck.data.tasks);
-          setDepConfirmOpen(true);
-        } else {
+        const strategy = useSettingsStore.getState().settings.completionStrategy || 'SUGGESTION';
+
+        if (strategy === 'STRICT') {
+          // Strict Mode: complete ONLY current task without prompting
           const res = await dataAdapter.completeTask(task.id, COMPLETION_STRATEGY.SINGLE);
           if (res.success) {
-            toast.success('已完成任务');
+            toast.success('已完成任务 (严格模式：不自动联动前置)');
             onRefresh?.();
           } else {
             toast.error(res.error || '操作失败');
+          }
+        } else if (strategy === 'AUTO') {
+          // Auto Mode: automatically cascade complete dependencies
+          const res = await dataAdapter.completeTask(task.id, COMPLETION_STRATEGY.WITH_DEPENDENCIES);
+          if (res.success) {
+            const count = res.data?.completed?.length || 1;
+            toast.success(
+              count > 1
+                ? `已完成该任务及 ${count - 1} 个前置依赖 (自动模式)`
+                : '已完成任务',
+            );
+            onRefresh?.();
+          } else {
+            toast.error(res.error || '操作失败');
+          }
+        } else {
+          // Suggestion Mode (Default): check for unfinished dependencies and prompt
+          const depCheck = await dataAdapter.checkUnfinishedDeps(task.id);
+          if (depCheck.success && depCheck.data && depCheck.data.count > 0) {
+            setPendingDepTasks(depCheck.data.tasks);
+            setDepConfirmOpen(true);
+          } else {
+            const res = await dataAdapter.completeTask(task.id, COMPLETION_STRATEGY.SINGLE);
+            if (res.success) {
+              toast.success('已完成任务');
+              onRefresh?.();
+            } else {
+              toast.error(res.error || '操作失败');
+            }
           }
         }
       }

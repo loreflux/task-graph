@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUIStore } from '@/stores/ui-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { dataAdapter } from '@/lib/storage/data-adapter';
 import type { Task } from '@/types';
 import { TASK_STATUS_LABELS } from '@/lib/constants';
@@ -54,9 +55,10 @@ export function CommandPalette({ onRefresh }: CommandPaletteProps) {
     const trimmed = query.trim();
     if (!trimmed) return;
 
+    const status = useSettingsStore.getState().settings.defaultTaskStatus || 'TODO';
     const res = await dataAdapter.createTask({
       title: trimmed,
-      status: 'TODO',
+      status,
     });
 
     if (res.success) {
@@ -76,9 +78,12 @@ export function CommandPalette({ onRefresh }: CommandPaletteProps) {
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/70 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/70 backdrop-blur-sm cursor-pointer"
+      onClick={handleClose}
+    >
       <div
-        className="w-full max-w-xl rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl overflow-hidden"
+        className="w-full max-w-xl rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl overflow-hidden cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input header */}

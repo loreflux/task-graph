@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { dataAdapter } from '@/lib/storage/data-adapter';
+import { useSettingsStore } from '@/stores/settings-store';
 import { toast } from 'sonner';
 
 interface TaskQuickCreateProps {
@@ -17,9 +18,11 @@ export function TaskQuickCreate({
   parentId = null,
   projectId = null,
   placeholder = '输入任务标题，按回车键快速创建...',
-  defaultStatus = 'TODO',
+  defaultStatus,
   onCreated,
 }: TaskQuickCreateProps) {
+  const settingsStatus = useSettingsStore((s) => s.settings.defaultTaskStatus);
+  const targetStatus = defaultStatus || settingsStatus || 'TODO';
   const [title, setTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -32,7 +35,7 @@ export function TaskQuickCreate({
     try {
       const res = await dataAdapter.createTask({
         title: trimmed,
-        status: defaultStatus,
+        status: targetStatus,
         priority: 'NONE',
         parentId,
         projectId,

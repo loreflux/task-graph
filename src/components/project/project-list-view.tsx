@@ -16,7 +16,12 @@ import {
   Plus,
   Clock,
   Layers,
+  Pencil,
 } from 'lucide-react';
+import {
+  ProjectContextMenu,
+  type ProjectContextMenuState,
+} from './project-context-menu';
 import { toast } from 'sonner';
 
 interface ProjectListViewProps {
@@ -29,6 +34,14 @@ export function ProjectListView({ initialProjects }: ProjectListViewProps) {
   const [tab, setTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [renameTarget, setRenameTarget] = useState<Project | null>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>({
+    open: false,
+    x: 0,
+    y: 0,
+    project: null,
+  });
 
   const refresh = async () => {
     try {
@@ -58,9 +71,26 @@ export function ProjectListView({ initialProjects }: ProjectListViewProps) {
     }
   };
 
-  const handleToggleArchive = async (e: React.MouseEvent, p: Project) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleRename = (p: Project) => {
+    setRenameTarget(p);
+    setRenameOpen(true);
+  };
+
+  const handleConfirmRename = async (name: string) => {
+    if (!renameTarget) return;
+    const res = await dataAdapter.updateProject(renameTarget.id, { name });
+    if (res.success) {
+      toast.success(`项目已重命名为 "${name}"`);
+      setRenameTarget(null);
+      refresh();
+    } else {
+      toast.error(res.error || '重命名失败');
+    }
+  };
+
+  const handleToggleArchive = async (p: Project, e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     const willArchive = !p.isArchived;
     const res = await dataAdapter.archiveProject(p.id, willArchive);
     if (res.success) {
@@ -71,9 +101,9 @@ export function ProjectListView({ initialProjects }: ProjectListViewProps) {
     }
   };
 
-  const handleDeleteClick = (e: React.MouseEvent, p: Project) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDeleteClick = (p: Project, e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     setDeleteTarget(p);
   };
 
@@ -160,6 +190,16 @@ export function ProjectListView({ initialProjects }: ProjectListViewProps) {
               <Link
                 key={p.id}
                 href={`/projects/${p.id}`}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setContextMenu({
+                    open: true,
+                    x: e.clientX,
+                    y: e.clientY,
+                    project: p,
+                  });
+                }}
                 className="group relative flex flex-col justify-between rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-5 transition hover:border-zinc-700 hover:bg-zinc-900 shadow-sm"
               >
                 <div>
@@ -194,12 +234,24 @@ export function ProjectListView({ initialProjects }: ProjectListViewProps) {
                     <span>创建于 {new Date(p.createdAt).toLocaleDateString()}</span>
                   </div>
 
-                  {/* Card Quick Actions: Archive & Delete */}
+                  {/* Card Quick Actions: Rename, Archive & Delete */}
                   <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100">
                     <button
                       type="button"
+                      title="重命名项目"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRename(p);
+                      }}
+                      className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-blue-400 transition"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
                       title={p.isArchived ? '恢复项目至进行中' : '归档此项目'}
-                      onClick={(e) => handleToggleArchive(e, p)}
+                      onClick={(e) => handleToggleArchive(p, e)}
                       className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-amber-400 transition"
                     >
                       {p.isArchived ? (
@@ -211,7 +263,7 @@ export function ProjectListView({ initialProjects }: ProjectListViewProps) {
                     <button
                       type="button"
                       title="删除项目"
-                      onClick={(e) => handleDeleteClick(e, p)}
+                      onClick={(e) => handleDeleteClick(p, e)}
                       className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-red-400 transition"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -233,6 +285,27 @@ export function ProjectListView({ initialProjects }: ProjectListViewProps) {
         placeholder="例如：微前端核心系统重构..."
         confirmText="立即创建"
         onConfirm={handleCreate}
+      />
+
+      {/* Rename Project Prompt Dialog */}
+      <PromptDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        title="重命名项目"
+        description="更新该任务拓扑项目的显示名称"
+        placeholder="输入新项目名称..."
+        defaultValue={renameTarget?.name || ''}
+        confirmText="保存名称"
+        onConfirm={handleConfirmRename}
+      />
+
+      {/* Project Context Menu (Right-Click) */}
+      <ProjectContextMenu
+        menu={contextMenu}
+        onClose={() => setContextMenu((prev) => ({ ...prev, open: false }))}
+        onRename={handleRename}
+        onToggleArchive={(proj) => handleToggleArchive(proj)}
+        onDelete={(proj) => handleDeleteClick(proj)}
       />
 
       {/* Delete Project Confirm Dialog */}

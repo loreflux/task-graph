@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSettingsStore, FONT_SIZE_MAP, type FontSizeOption } from '@/stores/settings-store';
+import { useUIStore } from '@/stores/ui-store';
+import { dataAdapter } from '@/lib/storage/data-adapter';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -161,6 +163,7 @@ export function SettingsView() {
                   {/* PostgreSQL Option */}
                   <div
                     onClick={() => {
+                      dataAdapter.clearCache();
                       updateSettings({ storageMode: 'postgresql' });
                       toast.success('已切换至 PostgreSQL 数据库存储模式');
                     }}
@@ -193,6 +196,7 @@ export function SettingsView() {
                   {/* LocalStorage Option */}
                   <div
                     onClick={() => {
+                      dataAdapter.clearCache();
                       updateSettings({ storageMode: 'localstorage' });
                       toast.success('已切换至本地 LocalStorage 存储模式');
                     }}
@@ -334,9 +338,11 @@ export function SettingsView() {
                   ].map((v) => (
                     <button
                       key={v.key}
-                      onClick={() =>
-                        updateSettings({ defaultView: v.key as any })
-                      }
+                      onClick={() => {
+                        updateSettings({ defaultView: v.key as any });
+                        useUIStore.getState().setCurrentView(v.key as any);
+                        toast.success(`已设置默认视图为：${v.label}`);
+                      }}
                       className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${
                         settings.defaultView === v.key
                           ? 'border-blue-500 bg-blue-950/30 text-blue-400'
@@ -708,7 +714,7 @@ export function SettingsView() {
                 <div className="flex items-center gap-2 font-semibold text-zinc-100">
                   <span>任务拓扑图可视化系统</span>
                   <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] text-blue-400">
-                    版本 1.0.0
+                    版本 1.0.1
                   </span>
                 </div>
                 <p className="text-zinc-400 leading-relaxed">

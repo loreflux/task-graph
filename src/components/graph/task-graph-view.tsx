@@ -47,6 +47,9 @@ const nodeTypes = {
 
 const edgeTypes = {
   taskEdge: TaskEdge,
+  smoothstep: TaskEdge,
+  bezier: TaskEdge,
+  default: TaskEdge,
 };
 
 const POSITIONS_STORAGE_KEY = 'task_graph_user_node_positions';
@@ -782,8 +785,12 @@ function TaskGraphFlow({
       const cycleCheck = detectCycle(adj, dependentId, dependencyId);
       if (cycleCheck.hasCycle) {
         const pathStr = cycleCheck.cyclePath ? cycleCheck.cyclePath.join(' → ') : '';
-        toast.error(`无法建立依赖关系：会形成循环依赖！\n路径: ${pathStr}`);
-        return;
+        if (settings.preventCyclesStrict) {
+          toast.error(`无法建立依赖关系：会形成循环依赖！\n路径: ${pathStr}`);
+          return;
+        } else {
+          toast.warning(`提示：检测到闭环路径 (${pathStr})，已按偏好设置放行连接`);
+        }
       }
 
       const res = await dataAdapter.addDependency(dependentId, dependencyId);
@@ -975,9 +982,10 @@ function TaskGraphFlow({
 
   // Quick task actions
   const handleCreateTaskConfirm = async (title: string) => {
+    const defaultStatus = settings.defaultTaskStatus || 'TODO';
     const res = await dataAdapter.createTask({
       title,
-      status: 'TODO',
+      status: defaultStatus,
       projectId: projectId || null,
     });
     if (res.success && res.data?.id) {
@@ -1012,7 +1020,8 @@ function TaskGraphFlow({
         onRefresh?.();
       }
     } else {
-      const res = await dataAdapter.completeTask(task.id, 'SINGLE');
+      const strategy = settings.completionStrategy === 'AUTO' ? 'WITH_DEPENDENCIES' : 'SINGLE';
+      const res = await dataAdapter.completeTask(task.id, strategy as any);
       if (res.success) {
         pushAction({
           description: `完成任务 "${task.title}"`,
@@ -1020,7 +1029,12 @@ function TaskGraphFlow({
             await dataAdapter.uncompleteTask(task.id);
           },
         });
-        toast.success('已标记任务为完成');
+        const count = res.data?.completed?.length || 1;
+        toast.success(
+          strategy === 'WITH_DEPENDENCIES' && count > 1
+            ? `已完成任务及 ${count - 1} 个前置依赖`
+            : '已标记任务为完成',
+        );
         onRefresh?.();
       }
     }
@@ -1029,11 +1043,12 @@ function TaskGraphFlow({
   const handleAddSubtaskConfirm = async (title: string) => {
     if (!subtaskParentTask) return;
     const parentTitle = subtaskParentTask.title;
+    const defaultStatus = settings.defaultTaskStatus || 'TODO';
     const res = await dataAdapter.createTask({
       title,
       parentId: subtaskParentTask.id,
       projectId: subtaskParentTask.projectId || projectId || null,
-      status: 'TODO',
+      status: defaultStatus,
     });
     if (res.success && res.data?.id) {
       const createdId = res.data.id;
@@ -1174,9 +1189,10 @@ function TaskGraphFlow({
     }
 
     // Create the new task
+    const defaultStatus = settings.defaultTaskStatus || 'TODO';
     const createRes = await dataAdapter.createTask({
       title,
-      status: 'TODO',
+      status: defaultStatus,
       projectId: parentTask.projectId || projectId || null,
     });
 
@@ -1256,18 +1272,20 @@ function TaskGraphFlow({
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#27272a" />
         <Controls className="!border-zinc-800 !bg-zinc-900/90 fill-zinc-300" />
-        <MiniMap
-          nodeColor={(node) => {
-            const task = (node.data as any)?.task as Task;
-            const isCrit = (node.data as any)?.isCriticalPath;
-            if (isCrit) return '#f59e0b';
-            if (task?.status === 'DONE') return '#22c55e';
-            if (task?.status === 'BLOCKED') return '#ef4444';
-            if (task?.status === 'IN_PROGRESS') return '#f59e0b';
-            return '#3b82f6';
-          }}
-          className="!rounded-lg !border !border-zinc-800 !bg-zinc-900/80"
-        />
+        {settings.showMiniMap && (
+          <MiniMap
+            nodeColor={(node) => {
+              const task = (node.data as any)?.task as Task;
+              const isCrit = (node.data as any)?.isCriticalPath;
+              if (isCrit) return '#f59e0b';
+              if (task?.status === 'DONE') return '#22c55e';
+              if (task?.status === 'BLOCKED') return '#ef4444';
+              if (task?.status === 'IN_PROGRESS') return '#f59e0b';
+              return '#3b82f6';
+            }}
+            className="!rounded-lg !border !border-zinc-800 !bg-zinc-900/80"
+          />
+        )}
 
         {/* Top-right floating controls toolbar */}
         <Panel position="top-right" className="m-4">

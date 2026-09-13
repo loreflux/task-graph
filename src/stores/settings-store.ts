@@ -83,11 +83,11 @@ export function applyFontSizeToDOM(
   customPx?: number | null,
 ): void {
   if (typeof document !== 'undefined') {
-    if (customPx && customPx >= 12 && customPx <= 32) {
-      document.documentElement.style.fontSize = `${customPx}px`;
-    } else {
-      document.documentElement.style.fontSize = FONT_SIZE_MAP[size] || '16px';
-    }
+    const px =
+      customPx && customPx >= 12 && customPx <= 32
+        ? `${customPx}px`
+        : FONT_SIZE_MAP[size] || '16px';
+    document.documentElement.style.setProperty('font-size', px, 'important');
   }
 }
 

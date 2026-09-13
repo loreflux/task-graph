@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import type { Project } from '@/types';
 import { dataAdapter } from '@/lib/storage/data-adapter';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { Archive, RotateCcw, Trash2 } from 'lucide-react';
+import { PromptDialog } from '@/components/ui/prompt-dialog';
+import { Archive, RotateCcw, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ProjectHeaderActionsProps {
@@ -21,7 +22,20 @@ interface ProjectHeaderActionsProps {
 export function ProjectHeaderActions({ project, stats }: ProjectHeaderActionsProps) {
   const router = useRouter();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [projectName, setProjectName] = useState(project.name);
   const [isArchived, setIsArchived] = useState(!!project.isArchived);
+
+  const handleRenameConfirm = async (name: string) => {
+    const res = await dataAdapter.updateProject(project.id, { name });
+    if (res.success) {
+      setProjectName(name);
+      toast.success(`项目名称已更新为 "${name}"`);
+      router.refresh();
+    } else {
+      toast.error(res.error || '重命名失败');
+    }
+  };
 
   const handleToggleArchive = async () => {
     const willArchive = !isArchived;
@@ -75,6 +89,15 @@ export function ProjectHeaderActions({ project, stats }: ProjectHeaderActionsPro
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setRenameOpen(true)}
+            className="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white"
+          >
+            <Pencil className="h-3.5 w-3.5 text-blue-400" />
+            <span>重命名</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleToggleArchive}
             className="flex items-center gap-1.5 rounded-md border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-300 transition hover:border-zinc-700 hover:text-white"
           >
@@ -102,11 +125,22 @@ export function ProjectHeaderActions({ project, stats }: ProjectHeaderActionsPro
         </div>
       </div>
 
+      <PromptDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        title="重命名项目"
+        description="更新当前项目的名称"
+        placeholder="输入新项目名称..."
+        defaultValue={projectName}
+        confirmText="保存名称"
+        onConfirm={handleRenameConfirm}
+      />
+
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
         title="确认删除此项目"
-        description={`确定要删除项目 "${project.name}" 吗？项目删除后，其关联的任务将被移入未分类空间，不会丢失。`}
+        description={`确定要删除项目 "${projectName}" 吗？项目删除后，其关联的任务将被移入未分类空间，不会丢失。`}
         variant="danger"
         confirmText="确认删除"
         cancelText="取消"

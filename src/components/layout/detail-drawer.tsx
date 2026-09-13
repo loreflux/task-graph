@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useUIStore } from '@/stores/ui-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import type { TaskWithRelations, Task, TaskRelation } from '@/types';
 import { TASK_STATUS_LABELS, TASK_PRIORITY_LABELS } from '@/lib/constants';
 import { dataAdapter } from '@/lib/storage/data-adapter';
@@ -178,8 +179,13 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
     const cycleCheck = detectCycle(adj, task.id, selectedDepTarget);
     if (cycleCheck.hasCycle) {
       const pathStr = cycleCheck.cyclePath ? cycleCheck.cyclePath.join(' → ') : '';
-      toast.error(`无法建立依赖关系：会形成循环依赖！\n路径: ${pathStr}`);
-      return;
+      const { settings } = useSettingsStore.getState();
+      if (settings.preventCyclesStrict) {
+        toast.error(`无法建立依赖关系：会形成循环依赖！\n路径: ${pathStr}`);
+        return;
+      } else {
+        toast.warning(`提示：检测到闭环路径 (${pathStr})，已按偏好设置放行添加。`);
+      }
     }
 
     const res = await dataAdapter.addDependency(task.id, selectedDepTarget);

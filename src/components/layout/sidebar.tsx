@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   CalendarDays,
   Inbox,
@@ -19,15 +19,32 @@ import {
 import { dataAdapter } from '@/lib/storage/data-adapter';
 import type { Project } from '@/types';
 import { PromptDialog } from '@/components/ui/prompt-dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import {
+  ProjectContextMenu,
+  type ProjectContextMenuState,
+} from '@/components/project/project-context-menu';
 import { useUIStore } from '@/stores/ui-store';
 import { toast } from 'sonner';
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { isMobileSidebarOpen, setMobileSidebarOpen } = useUIStore();
   const [projects, setProjects] = useState<Project[]>([]);
   const [showProjects, setShowProjects] = useState(true);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
+
+  // Project context menu and dialog states
+  const [contextMenu, setContextMenu] = useState<ProjectContextMenuState>({
+    open: false,
+    x: 0,
+    y: 0,
+    project: null,
+  });
+  const [renameTarget, setRenameTarget] = useState<Project | null>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
   const loadProjects = () => {
     dataAdapter.getProjects(false).then(setProjects).catch(console.error);
@@ -44,6 +61,57 @@ export function Sidebar() {
       loadProjects();
     } else {
       toast.error(res.error || '创建项目失败');
+    }
+  };
+
+  const handleRename = (project: Project) => {
+    setRenameTarget(project);
+    setRenameOpen(true);
+  };
+
+  const handleConfirmRename = async (newName: string) => {
+    if (!renameTarget) return;
+    const res = await dataAdapter.updateProject(renameTarget.id, { name: newName });
+    if (res.success) {
+      toast.success(`项目已重命名为 "${newName}"`);
+      setRenameTarget(null);
+      loadProjects();
+    } else {
+      toast.error(res.error || '重命名失败');
+    }
+  };
+
+  const handleToggleArchive = async (project: Project) => {
+    const willArchive = !project.isArchived;
+    const res = await dataAdapter.archiveProject(project.id, willArchive);
+    if (res.success) {
+      toast.success(willArchive ? `已归档项目 "${project.name}"` : `已恢复项目 "${project.name}"`);
+      loadProjects();
+      if (pathname === `/projects/${project.id}`) {
+        router.push('/projects');
+      }
+    } else {
+      toast.error(res.error || '归档操作失败');
+    }
+  };
+
+  const handleDelete = (project: Project) => {
+    setDeleteTarget(project);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    const res = await dataAdapter.deleteProject(deleteTarget.id);
+    if (res.success) {
+      toast.success(`已删除项目 "${deleteTarget.name}"`);
+      const targetId = deleteTarget.id;
+      setDeleteTarget(null);
+      loadProjects();
+      if (pathname === `/projects/${targetId}`) {
+        router.push('/projects');
+      }
+    } else {
+      toast.error(res.error || '删除项目失败');
     }
   };
 
@@ -141,6 +209,16 @@ export function Sidebar() {
                       key={proj.id}
                       href={`/projects/${proj.id}`}
                       onClick={() => setMobileSidebarOpen(false)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({
+                          open: true,
+                          x: e.clientX,
+                          y: e.clientY,
+                          project: proj,
+                        });
+                      }}
                       className={`flex items-center gap-2.5 rounded-md px-3 py-1.5 text-xs transition ${
                         isActive
                           ? 'bg-zinc-900 font-medium text-zinc-100'
@@ -151,7 +229,7 @@ export function Sidebar() {
                         className="h-2 w-2 rounded-full flex-shrink-0"
                         style={{ backgroundColor: proj.color || '#3b82f6' }}
                       />
-                      <span className="truncate">{proj.name}</span>
+                      <span className="truncate flex-1">{proj.name}</span>
                     </Link>
                   );
                 })
@@ -177,7 +255,7 @@ export function Sidebar() {
         </Link>
         <div className="flex items-center justify-between px-3 py-1 text-[10px] text-zinc-600">
           <span>任务拓扑图系统</span>
-          <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-zinc-500">版本 1.0</span>
+          <span className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-zinc-500">版本 1.0.1</span>
         </div>
       </div>
 
@@ -190,6 +268,43 @@ export function Sidebar() {
         placeholder="例如：SSO + WuJie 微前端工程架构"
         confirmText="创建项目"
         onConfirm={handleConfirmCreateProject}
+      />
+
+      {/* Project Context Menu (Right-Click) */}
+      <ProjectContextMenu
+        menu={contextMenu}
+        onClose={() => setContextMenu((prev) => ({ ...prev, open: false }))}
+        onRename={handleRename}
+        onToggleArchive={handleToggleArchive}
+        onDelete={handleDelete}
+      />
+
+      {/* Rename Project Dialog */}
+      <PromptDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        title="重命名项目"
+        description="更新该任务拓扑项目的显示名称"
+        placeholder="输入新项目名称..."
+        defaultValue={renameTarget?.name || ''}
+        confirmText="保存名称"
+        onConfirm={handleConfirmRename}
+      />
+
+      {/* Delete Project Confirm Dialog */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="确认删除项目"
+        description={
+          deleteTarget
+            ? `确定要删除项目 "${deleteTarget.name}" 吗？项目删除后，其关联的任务将解除项目归属，移至未归类空间，不会丢失。`
+            : ''
+        }
+        variant="danger"
+        confirmText="确认删除"
+        cancelText="取消"
+        onConfirm={handleConfirmDelete}
       />
     </aside>
   );
