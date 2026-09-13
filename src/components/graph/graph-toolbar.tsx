@@ -10,7 +10,7 @@ import {
   Eye,
   Sparkles,
   Undo2,
-  Scissors,
+  HelpCircle,
   Search,
   Share2,
 } from 'lucide-react';
@@ -29,6 +29,7 @@ interface GraphToolbarProps {
   lastActionDesc?: string | null;
   onOpenSearch?: () => void;
   onOpenExport?: () => void;
+  onOpenGuide?: () => void;
 }
 
 export function GraphToolbar({
@@ -45,6 +46,7 @@ export function GraphToolbar({
   lastActionDesc = null,
   onOpenSearch,
   onOpenExport,
+  onOpenGuide,
 }: GraphToolbarProps) {
   return (
     <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/90 p-1.5 shadow-xl backdrop-blur">
@@ -148,14 +150,16 @@ export function GraphToolbar({
 
       <div className="mx-1 h-4 w-px bg-zinc-800" />
 
-      {/* Slicing tool tip */}
-      <div
-        title="右键按住拖拽划线：如同激光刀片般直接切断经过的依赖连线（支持 Ctrl+Z 撤销）"
-        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-zinc-400 bg-zinc-900/60 border border-zinc-800/80 cursor-help transition hover:text-red-300 hover:border-red-900/50"
-      >
-        <Scissors className="h-3 w-3 text-red-400" />
-        <span className="hidden md:inline text-[11px]">右键划线断开连线</span>
-      </div>
+      {onOpenGuide && (
+        <button
+          onClick={onOpenGuide}
+          title="查看图谱画布操作指南与快捷键"
+          className="flex items-center gap-1.5 rounded-md border border-blue-500/30 bg-blue-950/20 px-2.5 py-1 text-xs font-medium text-blue-400 transition hover:bg-blue-900/40 hover:text-blue-200"
+        >
+          <HelpCircle className="h-3.5 w-3.5" />
+          <span>操作提示</span>
+        </button>
+      )}
     </div>
   );
 }

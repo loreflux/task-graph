@@ -133,7 +133,11 @@ export async function getTodayTasksData(): Promise<{
     allActiveTasks.filter((t) => t.status === 'DONE').map((t) => t.id),
   );
   const blockedAnalyses = getBlockedTasks(adj, completedIds);
-  const blockedIdSet = new Set(blockedAnalyses.map((b) => b.taskId));
+  const blockedIdSet = new Set(
+    blockedAnalyses
+      .filter((b) => b.isDirectlyBlocked && b.blockedBy.length > 0)
+      .map((b) => b.taskId),
+  );
 
   const todayTasks: Task[] = [];
   const overdueTasks: Task[] = [];

@@ -97,4 +97,48 @@ describe('Graph Layout Engine', () => {
     expect(edges[0].data?.isCriticalPath).toBe(true);
     expect(edges[0].style?.stroke).toBe('#f59e0b');
   });
+
+  it('ensures a newly created single task is NEVER marked as blocked by prerequisites', () => {
+    // A single task created from scratch with no relations
+    const tasks: Task[] = [createMockTask('first-task', '第一个独立任务')];
+    const relations: TaskRelation[] = [];
+
+    // Even if an erroneous caller passed first-task in blockedTaskIds,
+    // computeGraphLayout must not mark it blocked because it has 0 incoming dependencies
+    const { nodes } = computeGraphLayout(tasks, relations, new Set(['first-task']));
+
+    expect(nodes.length).toBe(1);
+    expect(nodes[0].data.isBlocked).toBe(false);
+    expect(nodes[0].data.directBlockers).toEqual([]);
+  });
+
+  it('marks task as blocked only when it actually has incomplete dependencies', () => {
+    const tasks: Task[] = [
+      createMockTask('t1', '前置任务'),
+      createMockTask('t2', '后置任务'),
+    ];
+    // t2 depends on t1 (sourceTaskId is dependent, targetTaskId is prerequisite)
+    const relations: TaskRelation[] = [
+      {
+        id: 'r1',
+        sourceTaskId: 't2',
+        targetTaskId: 't1',
+        relationType: 'DEPENDS_ON',
+        description: null,
+        createdAt: new Date(),
+      },
+    ];
+
+    const blockedIds = new Set(['t2']);
+    const { nodes } = computeGraphLayout(tasks, relations, blockedIds);
+
+    const node1 = nodes.find((n) => n.id === 't1')!;
+    const node2 = nodes.find((n) => n.id === 't2')!;
+
+    // t1 has no prerequisites -> not blocked
+    expect(node1.data.isBlocked).toBe(false);
+    // t2 depends on t1 and is in blockedIds -> isBlocked = true
+    expect(node2.data.isBlocked).toBe(true);
+    expect(node2.data.directBlockers).toEqual(['t1']);
+  });
 });

@@ -122,16 +122,37 @@ export function AppShell({
       </div>
 
       {/* Right Detail Drawer */}
-      <DetailDrawer onRefresh={onRefresh} />
+      <DetailDrawer
+        onRefresh={() => {
+          onRefresh?.();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('task_data_changed'));
+          }
+        }}
+      />
 
       {/* Command Palette Modal */}
-      <CommandPalette onRefresh={onRefresh} />
+      <CommandPalette
+        onRefresh={() => {
+          onRefresh?.();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('task_data_changed'));
+          }
+        }}
+      />
 
       {/* Proactive Task Deadline Reminder Background Manager */}
       <DeadlineReminderManager />
 
       {/* Global Plugin Modal Container for Interactive Plugins */}
-      <PluginModalContainer onRefresh={onRefresh} />
+      <PluginModalContainer
+        onRefresh={() => {
+          onRefresh?.();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('task_data_changed'));
+          }
+        }}
+      />
     </div>
   );
 }

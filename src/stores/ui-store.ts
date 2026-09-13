@@ -53,21 +53,8 @@ interface UIState {
   toggleMobileSidebar: () => void;
 }
 
-import { useSettingsStore } from "./settings-store";
-
-const getInitialView = (): ViewType => {
-  if (typeof window !== "undefined") {
-    try {
-      return (useSettingsStore.getState().settings.defaultView as ViewType) || "list";
-    } catch {
-      return "list";
-    }
-  }
-  return "list";
-};
-
 export const useUIStore = create<UIState>((set) => ({
-  currentView: getInitialView(),
+  currentView: "list",
   setCurrentView: (view) => set({ currentView: view }),
 
   selectedTaskId: null,

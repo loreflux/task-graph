@@ -23,6 +23,16 @@ export function ArchiveView({ initialTasks }: ArchiveViewProps) {
     refresh();
   }, []);
 
+  useEffect(() => {
+    const handleDataChanged = () => {
+      refresh();
+    };
+    window.addEventListener('task_data_changed', handleDataChanged);
+    return () => {
+      window.removeEventListener('task_data_changed', handleDataChanged);
+    };
+  }, []);
+
   return (
     <div className="flex h-full flex-col bg-zinc-950 p-6">
       <div className="mb-6 space-y-2">

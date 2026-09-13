@@ -18,6 +18,9 @@ import {
   Trash2,
   Power,
   Layers,
+  Zap,
+  Package,
+  Wrench,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -165,43 +168,47 @@ export function PluginMarketplaceView() {
         </button>
         <button
           onClick={() => setActiveCategory('theme')}
-          className={`rounded-lg px-3.5 py-1.5 font-medium transition ${
+          className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-medium transition ${
             activeCategory === 'theme'
               ? 'bg-purple-950/40 text-purple-300 border border-purple-500/40 font-semibold'
               : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          🎨 视觉样式主题
+          <Palette className="h-3.5 w-3.5 text-purple-400" />
+          <span>视觉样式主题</span>
         </button>
         <button
           onClick={() => setActiveCategory('feature')}
-          className={`rounded-lg px-3.5 py-1.5 font-medium transition ${
+          className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-medium transition ${
             activeCategory === 'feature'
               ? 'bg-blue-950/40 text-blue-300 border border-blue-500/40 font-semibold'
               : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          ⚡ 核心功能扩展
+          <Zap className="h-3.5 w-3.5 text-blue-400" />
+          <span>核心功能扩展</span>
         </button>
         <button
           onClick={() => setActiveCategory('tool')}
-          className={`rounded-lg px-3.5 py-1.5 font-medium transition ${
+          className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-medium transition ${
             activeCategory === 'tool'
               ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-500/40 font-semibold'
               : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          📦 数据与辅助工具
+          <Package className="h-3.5 w-3.5 text-emerald-400" />
+          <span>数据与辅助工具</span>
         </button>
         <button
           onClick={() => setActiveCategory('DEV')}
-          className={`rounded-lg px-3.5 py-1.5 font-medium transition ${
+          className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-medium transition ${
             activeCategory === 'DEV'
               ? 'bg-amber-950/40 text-amber-300 border border-amber-500/40 font-semibold'
               : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          🛠️ 开发者接口规范与自定义插件
+          <Wrench className="h-3.5 w-3.5 text-amber-400" />
+          <span>开发者规范与自定义插件</span>
         </button>
       </div>
 

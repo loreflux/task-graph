@@ -58,9 +58,23 @@ const cache = {
   },
 };
 
+export const TASK_DATA_CHANGED_EVENT = 'task_data_changed';
+
+export function notifyDataChanged(action?: string, payload?: any) {
+  cache.clear();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent(TASK_DATA_CHANGED_EVENT, { detail: { action, payload } }),
+    );
+  }
+}
+
 export const dataAdapter = {
   clearCache() {
     cache.clear();
+  },
+  notifyChange(action?: string, payload?: any) {
+    notifyDataChanged(action, payload);
   },
 
   // -------------------------------------------------------------
@@ -135,67 +149,87 @@ export const dataAdapter = {
 
   async createTask(input: CreateTaskInput): Promise<{ success: boolean; data?: Task; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: Task; error?: string };
     if (isLocalMode()) {
       try {
         const task = localStorageService.createTask(input);
-        return { success: true, data: task };
+        res = { success: true, data: task };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverTaskActions.createTaskAction(input);
     }
-    return serverTaskActions.createTaskAction(input);
+    if (res.success) notifyDataChanged('createTask', res.data);
+    return res;
   },
 
   async updateTask(id: string, input: UpdateTaskInput): Promise<{ success: boolean; data?: Task; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: Task; error?: string };
     if (isLocalMode()) {
       try {
         const task = localStorageService.updateTask(id, input);
-        return { success: true, data: task };
+        res = { success: true, data: task };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverTaskActions.updateTaskAction(id, input);
     }
-    return serverTaskActions.updateTaskAction(id, input);
+    if (res.success) notifyDataChanged('updateTask', res.data);
+    return res;
   },
 
   async deleteTask(id: string, permanent = false): Promise<{ success: boolean; error?: string }> {
     cache.clear();
+    let res: { success: boolean; error?: string };
     if (isLocalMode()) {
       try {
         localStorageService.deleteTask(id, permanent);
-        return { success: true };
+        res = { success: true };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverTaskActions.deleteTaskAction(id, permanent);
     }
-    return serverTaskActions.deleteTaskAction(id, permanent);
+    if (res.success) notifyDataChanged('deleteTask', { id, permanent });
+    return res;
   },
 
   async restoreTask(id: string): Promise<{ success: boolean; data?: Task; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: Task; error?: string };
     if (isLocalMode()) {
       try {
         const task = localStorageService.restoreTask(id);
-        return { success: true, data: task };
+        res = { success: true, data: task };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverTaskActions.restoreTaskAction(id);
     }
-    return serverTaskActions.restoreTaskAction(id);
+    if (res.success) notifyDataChanged('restoreTask', res.data);
+    return res;
   },
 
   async archiveTask(id: string): Promise<{ success: boolean; data?: Task; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: Task; error?: string };
     if (isLocalMode()) {
       try {
         const task = localStorageService.archiveTask(id);
-        return { success: true, data: task };
+        res = { success: true, data: task };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverTaskActions.archiveTaskAction(id);
     }
-    return serverTaskActions.archiveTaskAction(id);
+    if (res.success) notifyDataChanged('archiveTask', res.data);
+    return res;
   },
 
   async completeTask(
@@ -203,67 +237,87 @@ export const dataAdapter = {
     strategy: CompletionStrategy = COMPLETION_STRATEGY.SINGLE,
   ): Promise<{ success: boolean; data?: { completed: string[] }; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: { completed: string[] }; error?: string };
     if (isLocalMode()) {
       try {
-        const res = localStorageService.completeTask(id, strategy);
-        return { success: true, data: res };
+        const result = localStorageService.completeTask(id, strategy);
+        res = { success: true, data: result };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverTaskActions.completeTaskAction(id, strategy as any);
     }
-    return serverTaskActions.completeTaskAction(id, strategy as any);
+    if (res.success) notifyDataChanged('completeTask', res.data);
+    return res;
   },
 
   async uncompleteTask(id: string): Promise<{ success: boolean; data?: Task; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: Task; error?: string };
     if (isLocalMode()) {
       try {
         const task = localStorageService.uncompleteTask(id);
-        return { success: true, data: task };
+        res = { success: true, data: task };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverTaskActions.uncompleteTaskAction(id);
     }
-    return serverTaskActions.uncompleteTaskAction(id);
+    if (res.success) notifyDataChanged('uncompleteTask', res.data);
+    return res;
   },
 
   async batchComplete(ids: string[]): Promise<{ success: boolean; data?: { completed: string[] }; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: { completed: string[] }; error?: string };
     if (isLocalMode()) {
       try {
-        const res = localStorageService.batchComplete(ids);
-        return { success: true, data: res };
+        const result = localStorageService.batchComplete(ids);
+        res = { success: true, data: result };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverTaskActions.batchCompleteAction(ids);
     }
-    return serverTaskActions.batchCompleteAction(ids);
+    if (res.success) notifyDataChanged('batchComplete', { ids });
+    return res;
   },
 
   async batchArchive(ids: string[]): Promise<{ success: boolean; error?: string }> {
     cache.clear();
+    let res: { success: boolean; error?: string };
     if (isLocalMode()) {
       try {
         localStorageService.batchArchive(ids);
-        return { success: true };
+        res = { success: true };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverTaskActions.batchArchiveAction(ids);
     }
-    return serverTaskActions.batchArchiveAction(ids);
+    if (res.success) notifyDataChanged('batchArchive', { ids });
+    return res;
   },
 
   async batchDelete(ids: string[], permanent = false): Promise<{ success: boolean; error?: string }> {
     cache.clear();
+    let res: { success: boolean; error?: string };
     if (isLocalMode()) {
       try {
         localStorageService.batchDelete(ids, permanent);
-        return { success: true };
+        res = { success: true };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverTaskActions.batchDeleteAction(ids, permanent);
     }
-    return serverTaskActions.batchDeleteAction(ids, permanent);
+    if (res.success) notifyDataChanged('batchDelete', { ids, permanent });
+    return res;
   },
 
   async checkUnfinishedDeps(taskId: string): Promise<{ success: boolean; data?: { count: number; tasks: Task[] }; error?: string }> {
@@ -297,28 +351,36 @@ export const dataAdapter = {
     description?: string,
   ): Promise<{ success: boolean; data?: TaskRelation; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: TaskRelation; error?: string };
     if (isLocalMode()) {
       try {
         const rel = localStorageService.addDependency(sourceTaskId, targetTaskId, description);
-        return { success: true, data: rel };
+        res = { success: true, data: rel };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverRelationActions.addDependencyAction(sourceTaskId, targetTaskId, description);
     }
-    return serverRelationActions.addDependencyAction(sourceTaskId, targetTaskId, description);
+    if (res.success) notifyDataChanged('addDependency', res.data);
+    return res;
   },
 
   async removeDependency(relationId: string): Promise<{ success: boolean; error?: string }> {
     cache.clear();
+    let res: { success: boolean; error?: string };
     if (isLocalMode()) {
       try {
         localStorageService.removeDependency(relationId);
-        return { success: true };
+        res = { success: true };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverRelationActions.removeDependencyAction(relationId);
     }
-    return serverRelationActions.removeDependencyAction(relationId);
+    if (res.success) notifyDataChanged('removeDependency', { relationId });
+    return res;
   },
 
   // -------------------------------------------------------------
@@ -345,54 +407,70 @@ export const dataAdapter = {
 
   async createProject(input: CreateProjectInput): Promise<{ success: boolean; data?: Project; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: Project; error?: string };
     if (isLocalMode()) {
       try {
         const p = localStorageService.createProject(input);
-        return { success: true, data: p };
+        res = { success: true, data: p };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverProjectActions.createProjectAction(input);
     }
-    return serverProjectActions.createProjectAction(input);
+    if (res.success) notifyDataChanged('createProject', res.data);
+    return res;
   },
 
   async updateProject(id: string, input: UpdateProjectInput): Promise<{ success: boolean; data?: Project; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: Project; error?: string };
     if (isLocalMode()) {
       try {
         const p = localStorageService.updateProject(id, input);
-        return { success: true, data: p };
+        res = { success: true, data: p };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverProjectActions.updateProjectAction(id, input);
     }
-    return serverProjectActions.updateProjectAction(id, input);
+    if (res.success) notifyDataChanged('updateProject', res.data);
+    return res;
   },
 
   async archiveProject(id: string, archive = true): Promise<{ success: boolean; data?: Project; error?: string }> {
     cache.clear();
+    let res: { success: boolean; data?: Project; error?: string };
     if (isLocalMode()) {
       try {
         const p = localStorageService.archiveProject(id, archive);
-        return { success: true, data: p };
+        res = { success: true, data: p };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverProjectActions.archiveProjectAction(id, archive);
     }
-    return serverProjectActions.archiveProjectAction(id, archive);
+    if (res.success) notifyDataChanged('archiveProject', res.data);
+    return res;
   },
 
   async deleteProject(id: string, deleteTasks = false): Promise<{ success: boolean; error?: string }> {
     cache.clear();
+    let res: { success: boolean; error?: string };
     if (isLocalMode()) {
       try {
         localStorageService.deleteProject(id, deleteTasks);
-        return { success: true };
+        res = { success: true };
       } catch (err: any) {
-        return { success: false, error: err.message };
+        res = { success: false, error: err.message };
       }
+    } else {
+      res = await serverProjectActions.deleteProjectAction(id);
     }
-    return serverProjectActions.deleteProjectAction(id);
+    if (res.success) notifyDataChanged('deleteProject', { id });
+    return res;
   },
 
   async getProjectAnalytics(id: string): Promise<{

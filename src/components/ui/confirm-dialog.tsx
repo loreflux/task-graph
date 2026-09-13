@@ -22,6 +22,7 @@ interface ConfirmDialogProps {
   items?: string[];
   onConfirm: () => void | Promise<void>;
   onCancel?: () => void;
+  onClose?: () => void;
   loading?: boolean;
 }
 
@@ -36,6 +37,7 @@ export function ConfirmDialog({
   items,
   onConfirm,
   onCancel,
+  onClose,
   loading = false,
 }: ConfirmDialogProps) {
   const isDanger = variant === 'danger';
@@ -50,8 +52,15 @@ export function ConfirmDialog({
     onOpenChange(false);
   };
 
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      onClose?.();
+    }
+    onOpenChange(newOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-2.5">

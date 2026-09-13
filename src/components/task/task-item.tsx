@@ -175,6 +175,7 @@ export function TaskItem({
   return (
     <>
       <div
+        data-task-item="true"
         onClick={() => openDrawer(task.id, task)}
         style={{ paddingLeft: `${depth * 20 + 8}px` }}
         className={`group relative flex cursor-pointer items-center justify-between gap-3 border-b border-zinc-900/60 py-2.5 pr-3 transition hover:bg-zinc-900/40 ${
@@ -303,8 +304,11 @@ export function TaskItem({
         cancelText="仅完成当前任务"
         onConfirm={handleConfirmCascadeComplete}
         onCancel={() => {
-          // Trigger secondary warning modal as required by user prompt
+          // Trigger secondary warning modal when explicitly choosing to only complete current task
           setSecondaryWarningOpen(true);
+        }}
+        onClose={() => {
+          setSecondaryWarningOpen(false);
         }}
       />
 

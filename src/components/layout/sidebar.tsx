@@ -54,6 +54,16 @@ export function Sidebar() {
     loadProjects();
   }, [pathname]);
 
+  useEffect(() => {
+    const handleDataChanged = () => {
+      loadProjects();
+    };
+    window.addEventListener('task_data_changed', handleDataChanged);
+    return () => {
+      window.removeEventListener('task_data_changed', handleDataChanged);
+    };
+  }, []);
+
   const handleConfirmCreateProject = async (name: string) => {
     const res = await dataAdapter.createProject({ name });
     if (res.success) {
@@ -159,9 +169,9 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileSidebarOpen(false)}
-                className={`flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${
+                className={`relative flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${
                   isActive
-                    ? 'bg-zinc-900 text-zinc-100 font-semibold'
+                    ? 'bg-blue-600/10 text-blue-400 font-semibold before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-blue-500'
                     : 'text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200'
                 }`}
               >
@@ -219,9 +229,9 @@ export function Sidebar() {
                           project: proj,
                         });
                       }}
-                      className={`flex items-center gap-2.5 rounded-md px-3 py-1.5 text-xs transition ${
+                      className={`relative flex items-center gap-2.5 rounded-md px-3 py-1.5 text-xs transition ${
                         isActive
-                          ? 'bg-zinc-900 font-medium text-zinc-100'
+                          ? 'bg-blue-600/10 font-medium text-blue-400 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-r before:bg-blue-500'
                           : 'text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200'
                       }`}
                     >
@@ -244,9 +254,9 @@ export function Sidebar() {
         <Link
           href="/settings"
           onClick={() => setMobileSidebarOpen(false)}
-          className={`flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${
+          className={`relative flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition ${
             pathname === '/settings'
-              ? 'bg-zinc-900 text-blue-400 font-semibold'
+              ? 'bg-blue-600/10 text-blue-400 font-semibold before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r before:bg-blue-500'
               : 'text-zinc-400 hover:bg-zinc-900/60 hover:text-zinc-200'
           }`}
         >

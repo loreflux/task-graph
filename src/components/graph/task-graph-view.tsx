@@ -24,10 +24,9 @@ import { TaskNode } from './task-node';
 import { TaskEdge } from './task-edge';
 import { GraphToolbar } from './graph-toolbar';
 import { GraphContextMenu, type ContextMenuState } from './graph-context-menu';
-import { GraphCuttingOverlay } from './graph-cutting-overlay';
+import { GraphGuideDialog } from './graph-guide-dialog';
 import { GraphSearchBar } from './graph-search-bar';
 import { GraphExportDialog } from './graph-export-dialog';
-import { lineSegmentsIntersect } from '@/lib/cutting-math';
 import { computeGraphLayout } from '@/lib/graph-layout';
 import { detectCycle } from '@/lib/graph-algorithms/cycle-detection';
 import { getCriticalPath } from '@/lib/graph-algorithms/critical-path';
@@ -112,7 +111,7 @@ function TaskGraphFlow({
   projectId = null,
   onRefresh,
 }: TaskGraphViewProps) {
-  const { openDrawer } = useUIStore();
+  const { openDrawer, closeDrawer } = useUIStore();
   const { settings } = useSettingsStore();
   const { pushAction, undo, canUndo, lastActionDescription } = useUndoStore();
   const { fitView, setCenter, screenToFlowPosition } = useReactFlow();
@@ -185,309 +184,14 @@ function TaskGraphFlow({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo]);
 
-  // Click on blank pane: immediately close context menu
+  // Click on blank pane: immediately close context menu and close detail drawer
   const onPaneClick = useCallback(() => {
     setContextMenu((prev) => ({ ...prev, open: false }));
-  }, []);
+    closeDrawer();
+  }, [closeDrawer]);
 
-  // Right-click cutting (slicing) state
-  const [isCutting, setIsCutting] = useState(false);
-  const [cutPoints, setCutPoints] = useState<Array<{ x: number; y: number }>>([]);
-  const [severedCount, setSeveredCount] = useState(0);
-
-  const isRmbDownRef = useRef(false);
-  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
-  const hasDraggedRmbRef = useRef(false);
-  const lastPtRef = useRef<{ x: number; y: number } | null>(null);
-  const severedEdgesRef = useRef<Set<string>>(new Set());
-
-  interface CachedEdge {
-    id: string;
-    segments: Array<[{ x: number; y: number }, { x: number; y: number }]>;
-    bbox: { left: number; top: number; right: number; bottom: number };
-  }
-  const edgeCacheRef = useRef<CachedEdge[] | null>(null);
-
-  const buildEdgeCache = useCallback((): CachedEdge[] => {
-    const result: CachedEdge[] = [];
-    for (const rel of relations) {
-      const el =
-        (document.getElementById(rel.id) as SVGPathElement | null) ||
-        document.querySelector<SVGPathElement>(`[data-id="${rel.id}"] path.react-flow__edge-path`) ||
-        document.querySelector<SVGPathElement>(`.react-flow__edge[data-id="${rel.id}"] path`);
-      if (!el || typeof el.getTotalLength !== 'function') continue;
-
-      try {
-        const totalLen = el.getTotalLength();
-        if (totalLen <= 0) continue;
-
-        const rect = el.getBoundingClientRect();
-        const ctm = el.getScreenCTM();
-        if (!ctm) continue;
-
-        const samples = 16;
-        const points: Array<{ x: number; y: number }> = [];
-        for (let i = 0; i <= samples; i++) {
-          const dist = (i / samples) * totalLen;
-          const svgPt = el.getPointAtLength(dist);
-          const screenPt = svgPt.matrixTransform(ctm);
-          points.push({ x: screenPt.x, y: screenPt.y });
-        }
-
-        const segments: Array<[{ x: number; y: number }, { x: number; y: number }]> = [];
-        for (let i = 0; i < points.length - 1; i++) {
-          segments.push([points[i], points[i + 1]]);
-        }
-
-        result.push({
-          id: rel.id,
-          segments,
-          bbox: {
-            left: rect.left - 6,
-            top: rect.top - 6,
-            right: rect.right + 6,
-            bottom: rect.bottom + 6,
-          },
-        });
-      } catch {}
-    }
-    return result;
-  }, [relations]);
-
-  const restoreEdgeStyles = useCallback(() => {
-    for (const edgeId of severedEdgesRef.current) {
-      const el =
-        (document.getElementById(edgeId) as SVGPathElement | null) ||
-        document.querySelector<SVGPathElement>(
-          `[data-id="${edgeId}"] path.react-flow__edge-path`,
-        ) ||
-        document.querySelector<SVGPathElement>(
-          `.react-flow__edge[data-id="${edgeId}"] path`,
-        );
-      if (el) {
-        el.style.stroke = '';
-        el.style.strokeWidth = '';
-        el.style.strokeDasharray = '';
-        el.style.filter = '';
-        el.style.opacity = '';
-      }
-    }
-  }, []);
-
-  const checkIntersections = useCallback(
-    (p1: { x: number; y: number }, p2: { x: number; y: number }) => {
-      const cache = edgeCacheRef.current;
-      if (!cache) return;
-
-      const segMinX = Math.min(p1.x, p2.x);
-      const segMaxX = Math.max(p1.x, p2.x);
-      const segMinY = Math.min(p1.y, p2.y);
-      const segMaxY = Math.max(p1.y, p2.y);
-
-      let newlySevered = false;
-
-      for (const edge of cache) {
-        if (severedEdgesRef.current.has(edge.id)) continue;
-
-        if (
-          segMaxX < edge.bbox.left ||
-          segMinX > edge.bbox.right ||
-          segMaxY < edge.bbox.top ||
-          segMinY > edge.bbox.bottom
-        ) {
-          continue;
-        }
-
-        for (const [sA, sB] of edge.segments) {
-          if (
-            lineSegmentsIntersect(
-              p1.x,
-              p1.y,
-              p2.x,
-              p2.y,
-              sA.x,
-              sA.y,
-              sB.x,
-              sB.y,
-            )
-          ) {
-            severedEdgesRef.current.add(edge.id);
-            newlySevered = true;
-
-            const el =
-              (document.getElementById(edge.id) as SVGPathElement | null) ||
-              document.querySelector<SVGPathElement>(
-                `[data-id="${edge.id}"] path.react-flow__edge-path`,
-              ) ||
-              document.querySelector<SVGPathElement>(
-                `.react-flow__edge[data-id="${edge.id}"] path`,
-              );
-            if (el) {
-              el.style.stroke = '#ef4444';
-              el.style.strokeWidth = '3.5px';
-              el.style.strokeDasharray = '6,4';
-              el.style.filter = 'drop-shadow(0 0 10px #ef4444)';
-              el.style.opacity = '0.7';
-            }
-            break;
-          }
-        }
-      }
-
-      if (newlySevered) {
-        setSeveredCount(severedEdgesRef.current.size);
-      }
-    },
-    [],
-  );
-
-  const executeCutEdges = useCallback(
-    async (edgeIds: string[]) => {
-      const relationsToRestore: TaskRelation[] = [];
-      for (const id of edgeIds) {
-        const rel = relations.find((r) => r.id === id);
-        if (rel) {
-          relationsToRestore.push({ ...rel });
-        }
-        await dataAdapter.removeDependency(id);
-      }
-
-      if (relationsToRestore.length > 0) {
-        const first = relationsToRestore[0];
-        const srcTask = tasks.find((t) => t.id === first.targetTaskId);
-        const tgtTask = tasks.find((t) => t.id === first.sourceTaskId);
-        const singleDesc = srcTask && tgtTask ? `「${srcTask.title} → ${tgtTask.title}」` : '';
-
-        const actionDesc =
-          relationsToRestore.length === 1
-            ? `切断依赖连线 ${singleDesc}`
-            : `切断 ${relationsToRestore.length} 条依赖连线`;
-
-        pushAction({
-          description: actionDesc,
-          undo: async () => {
-            for (const rel of relationsToRestore) {
-              await dataAdapter.addDependency(
-                rel.sourceTaskId,
-                rel.targetTaskId,
-                rel.description || undefined,
-              );
-            }
-            onRefresh?.();
-          },
-        });
-
-        toast.success(actionDesc);
-        onRefresh?.();
-      }
-    },
-    [relations, tasks, pushAction, onRefresh],
-  );
-
-  // Global right-drag pointer listener for cutting wires
-  useEffect(() => {
-    const handlePointerDown = (e: PointerEvent) => {
-      if (e.button !== 2) return;
-      const target = e.target as HTMLElement | null;
-      const inGraph = target?.closest('.react-flow, .react-flow__pane, .react-flow__edge, .react-flow__node');
-      if (!inGraph) return;
-      if (target?.closest?.('[role="dialog"], input, textarea, .detail-drawer')) return;
-
-      dragStartRef.current = { x: e.clientX, y: e.clientY };
-      isRmbDownRef.current = true;
-      hasDraggedRmbRef.current = false;
-      severedEdgesRef.current.clear();
-      edgeCacheRef.current = null;
-    };
-
-    const handlePointerMove = (e: PointerEvent) => {
-      if (!isRmbDownRef.current || !dragStartRef.current) return;
-
-      const dist = Math.hypot(
-        e.clientX - dragStartRef.current.x,
-        e.clientY - dragStartRef.current.y,
-      );
-
-      if (!hasDraggedRmbRef.current) {
-        if (dist > 8) {
-          hasDraggedRmbRef.current = true;
-          setIsCutting(true);
-          edgeCacheRef.current = buildEdgeCache();
-          const startPt = { ...dragStartRef.current };
-          const currPt = { x: e.clientX, y: e.clientY };
-          setCutPoints([startPt, currPt]);
-          lastPtRef.current = currPt;
-          checkIntersections(startPt, currPt);
-        }
-      } else {
-        const currPt = { x: e.clientX, y: e.clientY };
-        const prevPt = lastPtRef.current || currPt;
-        lastPtRef.current = currPt;
-
-        setCutPoints((prev) => [...prev, currPt]);
-        checkIntersections(prevPt, currPt);
-      }
-    };
-
-    const handlePointerUp = (e: PointerEvent) => {
-      if (e.button !== 2) return;
-      if (!isRmbDownRef.current) return;
-
-      isRmbDownRef.current = false;
-
-      if (hasDraggedRmbRef.current) {
-        const toDelete = Array.from(severedEdgesRef.current);
-        if (toDelete.length > 0) {
-          executeCutEdges(toDelete);
-        }
-
-        setTimeout(() => {
-          hasDraggedRmbRef.current = false;
-        }, 150);
-      }
-
-      setIsCutting(false);
-      setCutPoints([]);
-      setSeveredCount(0);
-      edgeCacheRef.current = null;
-      dragStartRef.current = null;
-      lastPtRef.current = null;
-    };
-
-    const handleContextMenu = (e: MouseEvent) => {
-      if (hasDraggedRmbRef.current) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isCutting) {
-        isRmbDownRef.current = false;
-        hasDraggedRmbRef.current = false;
-        setIsCutting(false);
-        setCutPoints([]);
-        setSeveredCount(0);
-        restoreEdgeStyles();
-        severedEdgesRef.current.clear();
-        edgeCacheRef.current = null;
-      }
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown, true);
-    window.addEventListener('pointermove', handlePointerMove, true);
-    window.addEventListener('pointerup', handlePointerUp, true);
-    window.addEventListener('contextmenu', handleContextMenu, true);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown, true);
-      window.removeEventListener('pointermove', handlePointerMove, true);
-      window.removeEventListener('pointerup', handlePointerUp, true);
-      window.removeEventListener('contextmenu', handleContextMenu, true);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [buildEdgeCache, checkIntersections, executeCutEdges, isCutting, restoreEdgeStyles]);
+  // Operation guide dialog state
+  const [guideOpen, setGuideOpen] = useState(false);
 
   // 1. Calculate Critical Path when enabled
   const { criticalPathResult, criticalNodeIds, criticalEdgeIds } = useMemo(() => {
@@ -563,6 +267,18 @@ function TaskGraphFlow({
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes as Node[]);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges as Edge[]);
+
+
+  // Listen to task_data_changed to refresh graph when changes occur
+  useEffect(() => {
+    const handleDataChanged = () => {
+      onRefresh?.();
+    };
+    window.addEventListener('task_data_changed', handleDataChanged);
+    return () => {
+      window.removeEventListener('task_data_changed', handleDataChanged);
+    };
+  }, [onRefresh]);
 
   // Delete edge action handler with undo recording
   const handleDeleteEdge = useCallback(
@@ -842,10 +558,6 @@ function TaskGraphFlow({
 
   // 7. Right-click on blank canvas
   const onPaneContextMenu = useCallback((e: MouseEvent | React.MouseEvent) => {
-    if (hasDraggedRmbRef.current) {
-      e.preventDefault();
-      return;
-    }
     e.preventDefault();
     setContextMenu({
       open: true,
@@ -858,10 +570,6 @@ function TaskGraphFlow({
   // 8. Right-click on node
   const onNodeContextMenu = useCallback(
     (e: React.MouseEvent, node: Node) => {
-      if (hasDraggedRmbRef.current) {
-        e.preventDefault();
-        return;
-      }
       e.preventDefault();
       e.stopPropagation();
       const task = (node.data as any)?.task as Task;
@@ -879,10 +587,6 @@ function TaskGraphFlow({
   // 8.1 Right-click on edge
   const onEdgeContextMenu = useCallback(
     (e: React.MouseEvent, edge: Edge) => {
-      if (hasDraggedRmbRef.current) {
-        e.preventDefault();
-        return;
-      }
       e.preventDefault();
       e.stopPropagation();
       const rel = relations.find((r) => r.id === edge.id);
@@ -1303,6 +1007,7 @@ function TaskGraphFlow({
             lastActionDesc={lastActionDescription}
             onOpenSearch={() => setSearchOpen((prev) => !prev)}
             onOpenExport={() => setExportOpen(true)}
+            onOpenGuide={() => setGuideOpen(true)}
           />
         </Panel>
 
@@ -1335,11 +1040,10 @@ function TaskGraphFlow({
         onFocusNode={handleFocusNode}
       />
 
-      {/* Right-click Drag Laser Cutter Overlay */}
-      <GraphCuttingOverlay
-        active={isCutting}
-        points={cutPoints}
-        severedCount={severedCount}
+      {/* Canvas Operations Guide Dialog */}
+      <GraphGuideDialog
+        open={guideOpen}
+        onOpenChange={setGuideOpen}
       />
 
       {/* Right-click Context Menu */}

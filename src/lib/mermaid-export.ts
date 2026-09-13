@@ -22,12 +22,12 @@ export function exportToMermaid(tasks: Task[], relations: TaskRelation[]): strin
   for (const t of tasks) {
     const sId = safeId(t.id);
     const escapedTitle = t.title.replace(/"/g, "'").replace(/[\[\]\(\)\{\}]/g, '');
-    let icon = '';
-    if (t.status === 'DONE') icon = '✓ ';
-    else if (t.status === 'BLOCKED') icon = '🔒 ';
-    else if (t.status === 'IN_PROGRESS') icon = '⏳ ';
+    let statusTag = '';
+    if (t.status === 'DONE') statusTag = '[已完成] ';
+    else if (t.status === 'BLOCKED') statusTag = '[已阻塞] ';
+    else if (t.status === 'IN_PROGRESS') statusTag = '[进行中] ';
 
-    lines.push(`  ${sId}["${icon}${escapedTitle}"]`);
+    lines.push(`  ${sId}["${statusTag}${escapedTitle}"]`);
 
     if (t.status === 'DONE') lines.push(`  class ${sId} done`);
     else if (t.status === 'BLOCKED') lines.push(`  class ${sId} blocked`);

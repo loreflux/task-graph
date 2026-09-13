@@ -228,13 +228,13 @@ export function SettingsView() {
                 </div>
               </div>
 
-              {/* Custom Font Size Selector (6 tiers + 30-inch Screen + Custom Slider) */}
+              {/* Custom Font Size Selector */}
               <div className="border-t border-zinc-800/80 pt-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Type className="h-4 w-4 text-zinc-400" />
                     <label className="block text-xs font-semibold text-zinc-200">
-                      全局字体大小（完美适配 30 寸超大屏与各类高分屏）
+                      全局字体大小
                     </label>
                   </div>
                   {settings.customFontSizePx && (
@@ -250,18 +250,18 @@ export function SettingsView() {
                   )}
                 </div>
                 <p className="mt-1 text-xs text-zinc-500">
-                  选用标准原生中文字体族（苹方、微软雅黑、思源黑体），动态缩放根节点字号，让 30 寸显示器及大屏清晰易读。
+                  支持自定义字号缩放，选用系统级原生中文字体族（苹方、微软雅黑、思源黑体），满足不同显示偏好。
                 </p>
 
                 {/* 6 Preset Cards */}
                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   {[
                     { key: 'compact', label: '紧凑', sizeText: '14px', desc: '高密度信息排版' },
-                    { key: 'standard', label: '标准', sizeText: '16px', desc: '主流笔记本/显示器' },
-                    { key: 'comfortable', label: '舒适', sizeText: '18px', desc: '减缓长时间眼疲劳' },
-                    { key: 'large', label: '大字号', sizeText: '20px', desc: '大屏与触控易触达' },
-                    { key: 'huge', label: '超大屏', sizeText: '22px', desc: '30寸及以上显示器推荐' },
-                    { key: 'cinema', label: '远距演示', sizeText: '24px', desc: '4K超大屏或演示汇报' },
+                    { key: 'standard', label: '标准', sizeText: '16px', desc: '系统默认字号' },
+                    { key: 'comfortable', label: '舒适', sizeText: '18px', desc: '适中清晰排版' },
+                    { key: 'large', label: '较大', sizeText: '20px', desc: '大号字体展示' },
+                    { key: 'huge', label: '特大', sizeText: '22px', desc: '大屏清晰阅读' },
+                    { key: 'cinema', label: '超大', sizeText: '24px', desc: '远距演示汇报' },
                   ].map((f) => {
                     const isSelected =
                       !settings.customFontSizePx && settings.fontSize === f.key;
@@ -714,7 +714,7 @@ export function SettingsView() {
                 <div className="flex items-center gap-2 font-semibold text-zinc-100">
                   <span>任务拓扑图可视化系统</span>
                   <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] text-blue-400">
-                    版本 1.0.1
+                    版本 1.0.2
                   </span>
                 </div>
                 <p className="text-zinc-400 leading-relaxed">

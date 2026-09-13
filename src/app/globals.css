@@ -58,7 +58,7 @@
   }
 }
 
-/* Responsive typography baseline for high-res large monitors (e.g. 30-inch 2K/4K/Ultrawide) */
+/* Responsive typography baseline for high-resolution displays */
 @media (min-width: 1920px) {
   :root {
     font-size: 16px;
@@ -83,4 +83,43 @@
   background-color: var(--color-secondary) !important;
   color: var(--color-foreground) !important;
   border-color: var(--color-border) !important;
+}
+
+/* Custom sleek dark scrollbar matching UI theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.35); /* zinc-500/35 */
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(161, 161, 170, 0.6); /* zinc-400/60 */
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(113, 113, 122, 0.35) transparent;
+}
+
+/* Utility to hide scrollbars while maintaining scroll functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

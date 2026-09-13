@@ -19,6 +19,7 @@ import {
   Archive,
   Trash2,
   Settings,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -103,9 +104,19 @@ export function CommandPalette({ onRefresh }: CommandPaletteProps) {
             placeholder="搜索任务、输入指令，或直接按回车创建新任务..."
             className="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none"
           />
-          <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
-            Esc 退出
-          </kbd>
+          <div className="flex items-center gap-2">
+            <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
+              Esc 退出
+            </kbd>
+            <button
+              type="button"
+              onClick={handleClose}
+              title="关闭面板"
+              className="rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition focus:outline-none"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Command list options */}

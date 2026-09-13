@@ -9,6 +9,7 @@ import { playChimeSound } from '@/components/notification/deadline-reminder';
 import type { Task, TaskRelation, Project } from '@/types';
 import type { PluginContext } from '@/types/plugin';
 import { toast } from 'sonner';
+import { X } from 'lucide-react';
 
 export function PluginModalContainer({ onRefresh }: { onRefresh?: () => void }) {
   const { activeModalPluginId, closePluginModal, getAllPlugins } = usePluginStore();
@@ -87,13 +88,21 @@ export function PluginModalContainer({ onRefresh }: { onRefresh?: () => void }) 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-[65] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={closePluginModal}
     >
       <div
-        className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl animate-in zoom-in-95 duration-150"
+        className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
+        <button
+          type="button"
+          onClick={closePluginModal}
+          title="关闭窗口 (Esc)"
+          className="absolute right-3.5 top-3.5 z-50 rounded-lg bg-zinc-900/80 p-1.5 text-zinc-400 backdrop-blur-sm transition hover:bg-zinc-800 hover:text-zinc-100 focus:outline-none"
+        >
+          <X className="h-4 w-4" />
+        </button>
         <PluginComponent ctx={ctx} onClose={closePluginModal} />
       </div>
     </div>

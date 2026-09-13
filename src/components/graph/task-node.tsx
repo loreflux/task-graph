@@ -39,7 +39,8 @@ const COLOR_DOTS: Record<string, string> = {
 export const TaskNode = memo(({ data, selected }: NodeProps) => {
   const nodeData = data as unknown as TaskNodeData;
   const task = nodeData?.task;
-  const isBlocked = nodeData?.isBlocked || task?.status === 'BLOCKED';
+  const isBlocked = Boolean(nodeData?.isBlocked || task?.status === 'BLOCKED');
+  const hasBlockers = (nodeData?.directBlockers?.length || 0) > 0;
   const isDone = task?.status === 'DONE';
   const inProgress = task?.status === 'IN_PROGRESS';
   const isCritical = nodeData?.isCriticalPath;
@@ -60,7 +61,7 @@ export const TaskNode = memo(({ data, selected }: NodeProps) => {
   } else if (selected) {
     themeStyle = 'border-blue-500 ring-2 ring-blue-500/30';
   } else if (isBlocked) {
-    themeStyle = 'border-red-500/60 bg-red-950/10';
+    themeStyle = 'border-red-500/60 bg-red-950/10 shadow-[0_0_15px_rgba(239,68,68,0.15)]';
   } else if (isDone) {
     themeStyle = 'border-green-500/40 bg-zinc-900/60 opacity-80';
   } else if (inProgress) {
@@ -119,7 +120,13 @@ export const TaskNode = memo(({ data, selected }: NodeProps) => {
                 : 'text-zinc-400'
             }`}
           >
-            {TASK_STATUS_LABELS[task.status] || task.status}
+            {isDone
+              ? '已完成'
+              : isBlocked
+              ? '已阻塞'
+              : inProgress
+              ? '进行中'
+              : TASK_STATUS_LABELS[task.status] || task.status}
           </span>
         </div>
 

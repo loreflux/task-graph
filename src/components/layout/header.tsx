@@ -12,6 +12,13 @@ interface HeaderProps {
 
 export function Header({ title, count, onCreateTask }: HeaderProps) {
   const { currentView, setCurrentView, toggleCommandPalette, toggleMobileSidebar } = useUIStore();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const activeView = mounted ? currentView : 'list';
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 md:px-6">
@@ -35,14 +42,14 @@ export function Header({ title, count, onCreateTask }: HeaderProps) {
         )}
       </div>
 
-      {/* Center: View Switcher (List / Tree / Graph) */}
-      <div className="flex items-center rounded-lg border border-zinc-800 bg-zinc-900/60 p-1">
+      {/* Center: View Switcher (List / Tree / Graph - Segmented Control) */}
+      <div className="flex items-center rounded-lg border border-zinc-800 bg-zinc-900/80 p-0.5 shadow-inner">
         <button
           onClick={() => setCurrentView('list')}
           className={`flex items-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1 text-xs font-medium transition ${
-            currentView === 'list'
-              ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-              : 'text-zinc-400 hover:text-zinc-200'
+            activeView === 'list'
+              ? 'bg-zinc-800 text-blue-400 font-semibold shadow-sm border border-zinc-700/60'
+              : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
           }`}
           title="列表视图"
         >
@@ -53,9 +60,9 @@ export function Header({ title, count, onCreateTask }: HeaderProps) {
         <button
           onClick={() => setCurrentView('tree')}
           className={`flex items-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1 text-xs font-medium transition ${
-            currentView === 'tree'
-              ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-              : 'text-zinc-400 hover:text-zinc-200'
+            activeView === 'tree'
+              ? 'bg-zinc-800 text-blue-400 font-semibold shadow-sm border border-zinc-700/60'
+              : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
           }`}
           title="层级树视图"
         >
@@ -66,9 +73,9 @@ export function Header({ title, count, onCreateTask }: HeaderProps) {
         <button
           onClick={() => setCurrentView('graph')}
           className={`flex items-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1 text-xs font-medium transition ${
-            currentView === 'graph'
-              ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-              : 'text-zinc-400 hover:text-zinc-200'
+            activeView === 'graph'
+              ? 'bg-zinc-800 text-blue-400 font-semibold shadow-sm border border-zinc-700/60'
+              : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
           }`}
           title="依赖关系图"
         >

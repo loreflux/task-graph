@@ -33,8 +33,12 @@ import { useSettingsStore, applyFontSizeToDOM } from "@/stores/settings-store";
 import { useUIStore } from "@/stores/ui-store";
 
 function SettingsInitializer() {
-  const { settings } = useSettingsStore();
+  const { settings, loadFromStorage } = useSettingsStore();
   const { setCurrentView } = useUIStore();
+
+  useEffect(() => {
+    loadFromStorage();
+  }, [loadFromStorage]);
 
   useEffect(() => {
     applyFontSizeToDOM(settings.fontSize, settings.customFontSizePx);
@@ -56,7 +60,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <SettingsInitializer />
       {children}
-      <Toaster theme="dark" position="bottom-right" richColors />
+      <Toaster
+        theme="dark"
+        position="bottom-right"
+        richColors
+        closeButton
+        expand={true}
+        visibleToasts={3}
+        duration={3500}
+      />
     </QueryClientProvider>
   );
 }

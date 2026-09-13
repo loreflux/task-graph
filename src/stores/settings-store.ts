@@ -12,7 +12,7 @@ export interface AppSettings {
   // 存储模式支持: localstorage | postgresql
   storageMode: 'postgresql' | 'localstorage';
 
-  // 字体大小偏好: 紧凑 (14px) | 标准 (16px) | 舒适 (18px) | 大字号 (20px) | 超大屏 (22px) | 演示 (24px)
+  // 字体大小偏好: 紧凑 (14px) | 标准 (16px) | 舒适 (18px) | 较大 (20px) | 特大 (22px) | 超大 (24px)
   fontSize: FontSizeOption;
   customFontSizePx: number | null; // 自定义直接设定像素大小 (12px ~ 28px)
 
@@ -41,6 +41,7 @@ export interface AppSettings {
 
 interface SettingsState {
   settings: AppSettings;
+  loadFromStorage: () => void;
   updateSettings: (partial: Partial<AppSettings>) => void;
   resetSettings: () => void;
 }
@@ -50,8 +51,8 @@ export const FONT_SIZE_MAP: Record<FontSizeOption, string> = {
   standard: '16px',
   comfortable: '18px',
   large: '20px',
-  huge: '22px', // 专为 27-30 寸显示器优化
-  cinema: '24px', // 专为 4K / 30寸以上或远距演示优化
+  huge: '22px',
+  cinema: '24px',
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -91,41 +92,42 @@ export function applyFontSizeToDOM(
   }
 }
 
-export const useSettingsStore = create<SettingsState>((set) => {
-  let initialSettings = DEFAULT_SETTINGS;
-  if (typeof window !== 'undefined') {
-    const raw = localStorage.getItem('task_graph_settings');
-    if (raw) {
-      try {
-        initialSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-      } catch {}
-    }
-    // Apply initial font size to DOM
-    applyFontSizeToDOM(initialSettings.fontSize, initialSettings.customFontSizePx);
-  }
+export const useSettingsStore = create<SettingsState>((set) => ({
+  settings: DEFAULT_SETTINGS,
 
-  return {
-    settings: initialSettings,
+  loadFromStorage: () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('task_graph_settings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const merged = { ...DEFAULT_SETTINGS, ...parsed };
+        set({ settings: merged });
+        applyFontSizeToDOM(merged.fontSize, merged.customFontSizePx);
+      } else {
+        applyFontSizeToDOM(DEFAULT_SETTINGS.fontSize, null);
+      }
+    } catch {}
+  },
 
-    updateSettings: (partial) =>
-      set((state) => {
-        const updated = { ...state.settings, ...partial };
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('task_graph_settings', JSON.stringify(updated));
-          if (partial.fontSize !== undefined || partial.customFontSizePx !== undefined) {
-            applyFontSizeToDOM(updated.fontSize, updated.customFontSizePx);
-          }
+  updateSettings: (partial) =>
+    set((state) => {
+      const updated = { ...state.settings, ...partial };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('task_graph_settings', JSON.stringify(updated));
+        if (partial.fontSize !== undefined || partial.customFontSizePx !== undefined) {
+          applyFontSizeToDOM(updated.fontSize, updated.customFontSizePx);
         }
-        return { settings: updated };
-      }),
+      }
+      return { settings: updated };
+    }),
 
-    resetSettings: () =>
-      set(() => {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('task_graph_settings');
-          applyFontSizeToDOM(DEFAULT_SETTINGS.fontSize, null);
-        }
-        return { settings: DEFAULT_SETTINGS };
-      }),
-  };
-});
+  resetSettings: () =>
+    set(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('task_graph_settings');
+        applyFontSizeToDOM(DEFAULT_SETTINGS.fontSize, null);
+      }
+      return { settings: DEFAULT_SETTINGS };
+    }),
+}));

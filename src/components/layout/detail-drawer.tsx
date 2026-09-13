@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useUIStore } from '@/stores/ui-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import type { TaskWithRelations, Task, TaskRelation } from '@/types';
@@ -46,6 +46,101 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
   const [estimatedDuration, setEstimatedDuration] = useState<string>('');
   const [selectedDepTarget, setSelectedDepTarget] = useState<string>('');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const isResizingRef = useRef(false);
+
+  // Drawer width state with local persistence (min 360px, max 960px, default 480px)
+  const [drawerWidth, setDrawerWidth] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('task_drawer_width');
+      if (saved) {
+        const num = parseInt(saved, 10);
+        if (!isNaN(num) && num >= 360 && num <= 1200) return num;
+      }
+    }
+    return 480;
+  });
+
+  // Handle left-border drag to resize drawer
+  const handleMouseDownResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isResizingRef.current = true;
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const newWidth = window.innerWidth - moveEvent.clientX;
+      const clampedWidth = Math.min(
+        Math.max(newWidth, 360),
+        Math.min(window.innerWidth - 60, 960),
+      );
+      setDrawerWidth(clampedWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (isResizingRef.current) {
+        isResizingRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        setDrawerWidth((latest) => {
+          try {
+            localStorage.setItem('task_drawer_width', String(latest));
+          } catch {}
+          return latest;
+        });
+      }
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, []);
+
+  // Click outside blank area to auto-hide drawer
+  useEffect(() => {
+    if (!isDrawerOpen) return;
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (isResizingRef.current) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // Ignore clicks inside the drawer itself
+      if (drawerRef.current && drawerRef.current.contains(target)) {
+        return;
+      }
+
+      // Ignore clicks inside dialogs, context menus, or alert dialogs
+      if (
+        target.closest('[role="dialog"]') ||
+        target.closest('[role="alertdialog"]') ||
+        target.closest('[role="menu"]') ||
+        target.closest('.react-flow__context-menu') ||
+        target.closest('[data-drawer-ignore="true"]')
+      ) {
+        return;
+      }
+
+      // Ignore clicking on another task node or task item so switching tasks works smoothly
+      if (
+        target.closest('.react-flow__node') ||
+        target.closest('[data-task-item="true"]')
+      ) {
+        return;
+      }
+
+      closeDrawer();
+    };
+
+    window.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isDrawerOpen, closeDrawer]);
 
   // Fetch full details when selectedTaskId changes
   useEffect(() => {
@@ -104,9 +199,30 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
         }
         setAllTasks(tasksList);
         setAllRelations(relationsList);
+        setLoading(false);
       })
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        console.error('Failed to load task details:', err);
+        setLoading(false);
+      });
   }, [selectedTaskId, selectedTaskInitialData, isDrawerOpen]);
+
+  // Keep drawer in sync with global data changes
+  useEffect(() => {
+    const handleDataChanged = () => {
+      if (selectedTaskId && isDrawerOpen) {
+        dataAdapter.getTaskById(selectedTaskId).then((t) => {
+          if (t) setTask(t);
+        }).catch(() => {});
+        dataAdapter.getTasks({ includeArchived: true }).then(setAllTasks).catch(() => {});
+        dataAdapter.getAllRelations().then(setAllRelations).catch(() => {});
+      }
+    };
+    window.addEventListener('task_data_changed', handleDataChanged);
+    return () => {
+      window.removeEventListener('task_data_changed', handleDataChanged);
+    };
+  }, [selectedTaskId, isDrawerOpen]);
 
   if (!isDrawerOpen || !selectedTaskId) return null;
 
@@ -128,6 +244,14 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
     .map((id) => taskMap.get(id))
     .filter(Boolean) as Task[];
 
+  // Unfinished direct prerequisite tasks
+  const incompleteDeps = (task?.dependencies || [])
+    .map((rel) => taskMap.get(rel.targetTaskId))
+    .filter((t): t is Task => !!t && t.status !== 'DONE');
+
+  // Condition for blocking status change to IN_PROGRESS
+  const hasUnfinishedPrerequisites = blockingTasks.length > 0 || incompleteDeps.length > 0;
+
   // Unlock analysis
   const unlockAnalysis = task
     ? getUnlockableTasks(adj, completedIds, task.id)
@@ -139,8 +263,62 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
     .map((id) => taskMap.get(id))
     .filter(Boolean) as Task[];
 
+  // Immediate status change handler with prerequisite check
+  const handleStatusChange = async (newStatus: Task['status']) => {
+    if (!task) return;
+
+    if (newStatus === 'IN_PROGRESS' && hasUnfinishedPrerequisites) {
+      toast.error('当前任务存在未完成的前置依赖，无法设为「进行中」！请先完成前置任务。');
+      return;
+    }
+
+    const prevStatus = status;
+    setStatus(newStatus);
+    setTask((prev) => (prev ? { ...prev, status: newStatus } : prev));
+
+    const res = await dataAdapter.updateTask(task.id, { status: newStatus });
+    if (res.success) {
+      toast.success(`状态已更新为「${TASK_STATUS_LABELS[newStatus]}」`);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('task_data_changed'));
+      }
+      onRefresh?.();
+    } else {
+      toast.error(res.error || '状态更新失败');
+      setStatus(prevStatus);
+      setTask((prev) => (prev ? { ...prev, status: prevStatus } : prev));
+    }
+  };
+
+  // Immediate priority change handler
+  const handlePriorityChange = async (newPriority: Task['priority']) => {
+    if (!task) return;
+
+    const prevPriority = priority;
+    setPriority(newPriority);
+    setTask((prev) => (prev ? { ...prev, priority: newPriority } : prev));
+
+    const res = await dataAdapter.updateTask(task.id, { priority: newPriority });
+    if (res.success) {
+      toast.success(`优先级已调整为「${TASK_PRIORITY_LABELS[newPriority]}」`);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('task_data_changed'));
+      }
+      onRefresh?.();
+    } else {
+      toast.error(res.error || '优先级调整失败');
+      setPriority(prevPriority);
+      setTask((prev) => (prev ? { ...prev, priority: prevPriority } : prev));
+    }
+  };
+
   const handleSave = async () => {
     if (!task) return;
+
+    if (status === 'IN_PROGRESS' && hasUnfinishedPrerequisites) {
+      toast.error('当前任务存在未完成的前置依赖，无法保存为「进行中」！');
+      return;
+    }
 
     const startDate = startAt ? new Date(startAt) : null;
     const endDate = endAt ? new Date(endAt) : null;
@@ -162,6 +340,12 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
 
     if (res.success) {
       toast.success('已保存任务修改');
+      if (res.data) {
+        setTask((prev) => (prev ? { ...prev, ...res.data } : prev));
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('task_data_changed'));
+      }
       onRefresh?.();
     } else {
       toast.error(res.error || '保存任务修改失败');
@@ -192,9 +376,11 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
     if (res.success) {
       toast.success('已添加前置依赖');
       setSelectedDepTarget('');
-      // Reload drawer data
       const updated = await dataAdapter.getTaskById(task.id);
       if (updated) setTask(updated);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('task_data_changed'));
+      }
       onRefresh?.();
     } else {
       toast.error(res.error || '添加依赖失败');
@@ -208,6 +394,9 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
       toast.success('已移除依赖');
       const updated = await dataAdapter.getTaskById(task.id);
       if (updated) setTask(updated);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('task_data_changed'));
+      }
       onRefresh?.();
     } else {
       toast.error(res.error || '移除依赖失败');
@@ -219,6 +408,9 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
     const res = await dataAdapter.deleteTask(task.id);
     if (res.success) {
       toast.success('已移至回收站');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('task_data_changed'));
+      }
       closeDrawer();
       onRefresh?.();
     } else {
@@ -227,7 +419,25 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-zinc-800 bg-zinc-950/98 shadow-2xl backdrop-blur sm:w-[480px]">
+    <div
+      ref={drawerRef}
+      style={{
+        width:
+          typeof window !== 'undefined' && window.innerWidth < 640
+            ? '100%'
+            : `${drawerWidth}px`,
+      }}
+      className="fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l border-zinc-800 bg-zinc-950/98 shadow-2xl backdrop-blur"
+    >
+      {/* Drag resize handle on the left edge */}
+      <div
+        onMouseDown={handleMouseDownResize}
+        title="拖拽调节抽屉宽度"
+        className="group absolute -left-1.5 top-0 bottom-0 z-50 w-3 cursor-ew-resize select-none"
+      >
+        <div className="mx-auto h-full w-[2px] bg-transparent transition-colors duration-150 group-hover:bg-blue-500/80 group-active:bg-blue-500" />
+      </div>
+
       {/* Drawer Header */}
       <div className="flex items-center justify-between border-b border-zinc-800/80 px-5 py-4">
         <div className="flex items-center gap-2 text-xs text-zinc-400">
@@ -282,15 +492,29 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
             {/* Status & Priority */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-400">状态</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-zinc-400">状态</label>
+                  {hasUnfinishedPrerequisites && (
+                    <span className="text-[10px] text-amber-500/90 flex items-center gap-0.5">
+                      <AlertTriangle className="h-2.5 w-2.5" />
+                      前置未完
+                    </span>
+                  )}
+                </div>
                 <select
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
+                  onChange={(e) => handleStatusChange(e.target.value as any)}
                   className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 focus:border-zinc-600 focus:outline-none"
                 >
                   <option value="INBOX">收件箱</option>
                   <option value="TODO">待办</option>
-                  <option value="IN_PROGRESS">进行中</option>
+                  <option
+                    value="IN_PROGRESS"
+                    disabled={hasUnfinishedPrerequisites}
+                    className={hasUnfinishedPrerequisites ? 'text-zinc-600 bg-zinc-950' : ''}
+                  >
+                    {hasUnfinishedPrerequisites ? '进行中 (前置未完成，禁止)' : '进行中'}
+                  </option>
                   <option value="BLOCKED">已阻塞</option>
                   <option value="DONE">已完成</option>
                   <option value="ARCHIVED">已归档</option>
@@ -301,7 +525,7 @@ export function DetailDrawer({ onRefresh }: DetailDrawerProps) {
                 <label className="mb-1 block text-xs font-medium text-zinc-400">优先级</label>
                 <select
                   value={priority}
-                  onChange={(e) => setPriority(e.target.value as any)}
+                  onChange={(e) => handlePriorityChange(e.target.value as any)}
                   className="w-full rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 focus:border-zinc-600 focus:outline-none"
                 >
                   <option value="NONE">无</option>

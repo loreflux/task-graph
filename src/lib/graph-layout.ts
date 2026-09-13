@@ -58,13 +58,18 @@ export function computeGraphLayout(
   // Graph flow direction: predecessor (targetTaskId) -> dependent (sourceTaskId).
   const outgoing = new Map<string, string[]>(); // dependency -> dependents
   const incoming = new Map<string, string[]>(); // dependent -> dependencies
+  const allIncoming = new Map<string, string[]>(); // all prerequisites regardless of whether prerequisite is filtered
 
   for (const t of tasks) {
     outgoing.set(t.id, []);
     incoming.set(t.id, []);
+    allIncoming.set(t.id, []);
   }
 
   for (const rel of relations) {
+    if (allIncoming.has(rel.sourceTaskId)) {
+      allIncoming.get(rel.sourceTaskId)?.push(rel.targetTaskId);
+    }
     if (taskMap.has(rel.sourceTaskId) && taskMap.has(rel.targetTaskId)) {
       outgoing.get(rel.targetTaskId)?.push(rel.sourceTaskId);
       incoming.get(rel.sourceTaskId)?.push(rel.targetTaskId);
@@ -202,7 +207,10 @@ export function computeGraphLayout(
   // 4. Assemble React Flow nodes
   const nodes: LayoutNode[] = tasks.map((task) => {
     const pos = positions.get(task.id) || { x: 60, y: 60 };
-    const isBlocked = blockedTaskIds.has(task.id);
+    const incomingDeps = allIncoming.get(task.id) || [];
+    const isBlocked =
+      task.status === 'BLOCKED' ||
+      (blockedTaskIds.has(task.id) && incomingDeps.length > 0);
     const isCritical = criticalPathNodeIds.has(task.id);
 
     return {
@@ -212,7 +220,7 @@ export function computeGraphLayout(
       data: {
         task,
         isBlocked,
-        directBlockers: incoming.get(task.id),
+        directBlockers: incomingDeps,
         isCriticalPath: isCritical,
       },
     };

@@ -55,9 +55,9 @@ describe('Mermaid & JSON Export Library', () => {
     expect(mermaid).toContain('graph LR');
 
     // Node declarations with escaped titles
-    expect(mermaid).toContain('node_t1["✓ 需求评审"]');
-    expect(mermaid).toContain('node_t2["⏳ 架构设计 V2"]');
-    expect(mermaid).toContain('node_t3["🔒 前端开发"]');
+    expect(mermaid).toContain('node_t1["[已完成] 需求评审"]');
+    expect(mermaid).toContain('node_t2["[进行中] 架构设计 V2"]');
+    expect(mermaid).toContain('node_t3["[已阻塞] 前端开发"]');
 
     // Class assignments
     expect(mermaid).toContain('class node_t1 done');
