@@ -12,9 +12,14 @@ import { getBlockedTasks } from '@/lib/graph-algorithms/blocked-analysis';
 interface TodayViewProps {
   initialTasks: Task[];
   initialRelations: TaskRelation[];
+  projectId?: string | null;
 }
 
-export function TodayView({ initialTasks, initialRelations }: TodayViewProps) {
+export function TodayView({
+  initialTasks,
+  initialRelations,
+  projectId = null,
+}: TodayViewProps) {
   const { currentView } = useUIStore();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [relations, setRelations] = useState<TaskRelation[]>(initialRelations);
@@ -22,15 +27,18 @@ export function TodayView({ initialTasks, initialRelations }: TodayViewProps) {
   const refresh = React.useCallback(async () => {
     try {
       const [ts, rs] = await Promise.all([
-        dataAdapter.getTasks({ includeArchived: false }),
-        dataAdapter.getAllRelations(),
+        dataAdapter.getTasks({
+          projectId: projectId || undefined,
+          includeArchived: false,
+        }),
+        dataAdapter.getAllRelations(projectId || undefined),
       ]);
       setTasks(ts);
       setRelations(rs);
     } catch (err) {
       console.error('Failed to refresh tasks:', err);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     refresh();
@@ -54,14 +62,27 @@ export function TodayView({ initialTasks, initialRelations }: TodayViewProps) {
         tasks={tasks}
         relations={relations}
         blockedTaskIds={blockedIds}
+        projectId={projectId}
         onRefresh={refresh}
       />
     );
   }
 
   if (currentView === 'tree') {
-    return <TaskTreeView tasks={tasks} onRefresh={refresh} />;
+    return (
+      <TaskTreeView
+        tasks={tasks}
+        projectId={projectId}
+        onRefresh={refresh}
+      />
+    );
   }
 
-  return <TaskListView tasks={tasks} onRefresh={refresh} />;
+  return (
+    <TaskListView
+      tasks={tasks}
+      projectId={projectId}
+      onRefresh={refresh}
+    />
+  );
 }

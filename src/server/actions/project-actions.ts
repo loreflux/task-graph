@@ -33,3 +33,13 @@ export async function deleteProjectAction(id: string) {
     return { success: false as const, error: error.message || 'Failed to delete project' };
   }
 }
+
+export async function archiveProjectAction(id: string, archive = true) {
+  try {
+    const project = await projectService.updateProject(id, { isArchived: archive } as any);
+    revalidatePath('/projects');
+    return { success: true as const, data: project };
+  } catch (error: any) {
+    return { success: false as const, error: error.message || 'Failed to archive project' };
+  }
+}

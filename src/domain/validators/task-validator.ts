@@ -32,24 +32,25 @@ export const createTaskSchema = z
       .trim()
       .min(1, 'Title is required')
       .max(500, 'Title must be at most 500 characters'),
-    description: z.string().optional(),
+    description: z.string().nullish(),
     status: taskStatusSchema.default('INBOX'),
     priority: taskPrioritySchema.default('NONE'),
-    projectId: z.string().uuid('Invalid project ID').optional(),
-    parentId: z.string().uuid('Invalid parent task ID').optional(),
-    startAt: z.coerce.date().optional(),
-    endAt: z.coerce.date().optional(),
+    projectId: z.preprocess((v) => (v === '' ? null : v), z.string().nullish()),
+    parentId: z.preprocess((v) => (v === '' ? null : v), z.string().nullish()),
+    startAt: z.coerce.date().nullish(),
+    endAt: z.coerce.date().nullish(),
     isAllDay: z.boolean().default(false),
     estimatedDuration: z
       .number()
       .int('Estimated duration must be a whole number')
       .positive('Estimated duration must be positive')
-      .optional(),
+      .nullish(),
     actualDuration: z
       .number()
       .int('Actual duration must be a whole number')
       .positive('Actual duration must be positive')
-      .optional(),
+      .nullish(),
+    sortOrder: z.number().int().optional(),
   })
   .refine(
     (data) => {
@@ -72,7 +73,7 @@ export type CreateTaskSchema = z.infer<typeof createTaskSchema>;
 
 export const updateTaskSchema = z
   .object({
-    id: z.string().uuid('Invalid task ID'),
+    id: z.string().min(1, 'Invalid task ID'),
     title: z
       .string()
       .trim()
@@ -82,8 +83,8 @@ export const updateTaskSchema = z
     description: z.string().nullish(),
     status: taskStatusSchema.optional(),
     priority: taskPrioritySchema.optional(),
-    projectId: z.string().uuid('Invalid project ID').nullish(),
-    parentId: z.string().uuid('Invalid parent task ID').nullish(),
+    projectId: z.preprocess((v) => (v === '' ? null : v), z.string().nullish()),
+    parentId: z.preprocess((v) => (v === '' ? null : v), z.string().nullish()),
     startAt: z.coerce.date().nullish(),
     endAt: z.coerce.date().nullish(),
     isAllDay: z.boolean().optional(),
@@ -120,13 +121,13 @@ export type UpdateTaskSchema = z.infer<typeof updateTaskSchema>;
 
 export const batchUpdateSchema = z.object({
   ids: z
-    .array(z.string().uuid('Invalid task ID'))
+    .array(z.string().min(1, 'Invalid task ID'))
     .min(1, 'At least one task ID is required'),
   updates: z
     .object({
       status: taskStatusSchema.optional(),
       priority: taskPrioritySchema.optional(),
-      projectId: z.string().uuid('Invalid project ID').nullish(),
+      projectId: z.preprocess((v) => (v === '' ? null : v), z.string().nullish()),
       startAt: z.coerce.date().nullish(),
       endAt: z.coerce.date().nullish(),
       isAllDay: z.boolean().optional(),
@@ -154,8 +155,8 @@ export type BatchUpdateSchema = z.infer<typeof batchUpdateSchema>;
 export const taskFiltersSchema = z.object({
   status: z.array(taskStatusSchema).optional(),
   priority: z.array(taskPrioritySchema).optional(),
-  projectId: z.string().uuid().optional(),
-  parentId: z.string().uuid().nullish(),
+  projectId: z.string().nullish(),
+  parentId: z.string().nullish(),
   isDeleted: z.boolean().optional(),
   search: z.string().optional(),
   startAfter: z.coerce.date().optional(),

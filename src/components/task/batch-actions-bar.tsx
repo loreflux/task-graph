@@ -8,17 +8,25 @@ import { Check, Archive, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface BatchActionsBarProps {
+  allTaskIds?: string[];
   onRefresh?: () => void;
 }
 
-export function BatchActionsBar({ onRefresh }: BatchActionsBarProps) {
-  const { selectedIds, clearSelection } = useSelectionStore();
+export function BatchActionsBar({ allTaskIds, onRefresh }: BatchActionsBarProps) {
+  const { selectedIds, selectMany, clearSelection } = useSelectionStore();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const count = selectedIds.size;
 
   if (count === 0) return null;
 
   const ids = Array.from(selectedIds);
+  const canSelectAll = allTaskIds && allTaskIds.length > count;
+
+  const handleSelectAll = () => {
+    if (allTaskIds) {
+      selectMany(allTaskIds);
+    }
+  };
 
   const handleComplete = async () => {
     const res = await dataAdapter.batchComplete(ids);
@@ -59,6 +67,16 @@ export function BatchActionsBar({ onRefresh }: BatchActionsBarProps) {
         <span className="text-xs font-semibold text-zinc-200">
           已选择 {count} 项
         </span>
+
+        {canSelectAll && (
+          <button
+            type="button"
+            onClick={handleSelectAll}
+            className="rounded bg-zinc-800 px-2 py-1 text-[11px] font-medium text-blue-400 hover:bg-zinc-700 hover:text-blue-300"
+          >
+            全选全部 ({allTaskIds?.length})
+          </button>
+        )}
 
         <div className="h-4 w-px bg-zinc-700" />
 

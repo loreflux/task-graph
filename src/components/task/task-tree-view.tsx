@@ -7,7 +7,8 @@ import { TaskQuickCreate } from './task-quick-create';
 import { BatchActionsBar } from './batch-actions-bar';
 import { PromptDialog } from '@/components/ui/prompt-dialog';
 import { createTaskAction } from '@/server/actions/task-actions';
-import { GitBranch, Plus } from 'lucide-react';
+import { useSelectionStore } from '@/stores/selection-store';
+import { GitBranch, Plus, Check, Minus } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface TaskTreeViewProps {
@@ -22,9 +23,26 @@ export function TaskTreeView({
   onRefresh,
 }: TaskTreeViewProps) {
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
+  const { selectedIds, selectMany, clearSelection } = useSelectionStore();
 
   // Subtask dialog state
   const [subtaskTargetTask, setSubtaskTargetTask] = useState<Task | null>(null);
+
+  const allTaskIds = useMemo(() => tasks.map((t) => t.id), [tasks]);
+  const selectedCountInView = useMemo(
+    () => allTaskIds.filter((id) => selectedIds.has(id)).length,
+    [allTaskIds, selectedIds],
+  );
+  const isAllSelected = tasks.length > 0 && selectedCountInView === tasks.length;
+  const isPartiallySelected = selectedCountInView > 0 && selectedCountInView < tasks.length;
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      clearSelection();
+    } else {
+      selectMany(allTaskIds);
+    }
+  };
 
   // Build tree from tasks
   const { rootNodes, childrenMap } = useMemo(() => {
@@ -57,7 +75,7 @@ export function TaskTreeView({
     const res = await createTaskAction({
       title,
       parentId: subtaskTargetTask.id,
-      projectId: subtaskTargetTask.projectId,
+      projectId: subtaskTargetTask.projectId || projectId || null,
       status: 'TODO',
     });
 
@@ -115,7 +133,7 @@ export function TaskTreeView({
   return (
     <div className="flex h-full flex-col bg-zinc-950 p-6">
       {/* Top Header */}
-      <div className="mb-6 space-y-3">
+      <div className="mb-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <GitBranch className="h-4 w-4 text-blue-400" />
@@ -136,6 +154,48 @@ export function TaskTreeView({
         />
       </div>
 
+      {/* Select All Bar */}
+      {tasks.length > 0 && (
+        <div className="mb-2 flex items-center justify-between px-2 text-xs text-zinc-400 select-none">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleToggleSelectAll}
+              className="flex items-center gap-2 rounded px-2 py-1 transition hover:bg-zinc-900 hover:text-zinc-200"
+            >
+              <div
+                className={`flex h-4 w-4 items-center justify-center rounded border transition ${
+                  isAllSelected
+                    ? 'border-blue-500 bg-blue-600 text-white'
+                    : isPartiallySelected
+                      ? 'border-blue-500 bg-blue-600/30 text-blue-400'
+                      : 'border-zinc-700 bg-zinc-900/80 hover:border-zinc-500'
+                }`}
+              >
+                {isAllSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                {isPartiallySelected && <Minus className="h-3 w-3 stroke-[3]" />}
+              </div>
+              <span className="font-medium">
+                {isAllSelected ? '取消全选' : '全选'}
+              </span>
+            </button>
+            <span className="text-[11px] text-zinc-500">
+              (共 {tasks.length} 项{selectedCountInView > 0 ? `，已选中 ${selectedCountInView} 项` : ''})
+            </span>
+          </div>
+
+          {selectedCountInView > 0 && (
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="text-[11px] text-zinc-500 transition hover:text-zinc-300"
+            >
+              清空选中
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Tree container */}
       <div className="flex-1 overflow-y-auto rounded-lg border border-zinc-900 bg-zinc-900/20">
         {rootNodes.length === 0 ? (
@@ -151,7 +211,7 @@ export function TaskTreeView({
         )}
       </div>
 
-      <BatchActionsBar onRefresh={onRefresh} />
+      <BatchActionsBar allTaskIds={allTaskIds} onRefresh={onRefresh} />
 
       {/* Custom Prompt Dialog for Subtask Creation */}
       <PromptDialog

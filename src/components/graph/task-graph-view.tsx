@@ -52,24 +52,26 @@ const edgeTypes = {
 const POSITIONS_STORAGE_KEY = 'task_graph_user_node_positions';
 const COLORS_STORAGE_KEY = 'task_graph_user_node_colors';
 
-function getSavedPositions(): Record<string, { x: number; y: number }> {
+function getSavedPositions(projectId?: string | null): Record<string, { x: number; y: number }> {
   if (typeof window === 'undefined') return {};
   try {
-    const raw = localStorage.getItem(POSITIONS_STORAGE_KEY);
+    const key = projectId ? `task_graph_user_node_positions_${projectId}` : POSITIONS_STORAGE_KEY;
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 }
 
-function savePositions(nodesList: Node[]) {
+function savePositions(nodesList: Node[], projectId?: string | null) {
   if (typeof window === 'undefined') return;
   try {
-    const posMap: Record<string, { x: number; y: number }> = getSavedPositions();
+    const key = projectId ? `task_graph_user_node_positions_${projectId}` : POSITIONS_STORAGE_KEY;
+    const posMap: Record<string, { x: number; y: number }> = getSavedPositions(projectId);
     for (const n of nodesList) {
       posMap[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
     }
-    localStorage.setItem(POSITIONS_STORAGE_KEY, JSON.stringify(posMap));
+    localStorage.setItem(key, JSON.stringify(posMap));
   } catch {}
 }
 
@@ -96,6 +98,7 @@ interface TaskGraphViewProps {
   tasks: Task[];
   relations: TaskRelation[];
   blockedTaskIds?: Set<string>;
+  projectId?: string | null;
   onRefresh?: () => void;
 }
 
@@ -103,6 +106,7 @@ function TaskGraphFlow({
   tasks,
   relations,
   blockedTaskIds = EMPTY_ID_SET,
+  projectId = null,
   onRefresh,
 }: TaskGraphViewProps) {
   const { openDrawer } = useUIStore();
@@ -604,7 +608,7 @@ function TaskGraphFlow({
   // Save node positions on drag stop and push undo action
   const onNodeDragStop = useCallback(
     (_: any, node: Node, draggedNodes?: Node[]) => {
-      const savedPositions = getSavedPositions();
+      const savedPositions = getSavedPositions(projectId);
       const startMap = dragStartPositionsRef.current;
       const targetNodes = draggedNodes && draggedNodes.length > 0 ? draggedNodes : [node];
 
@@ -627,7 +631,7 @@ function TaskGraphFlow({
 
       // Persist all current nodes' positions to localStorage
       setNodes((currentNodes) => {
-        savePositions(currentNodes);
+        savePositions(currentNodes, projectId);
         return currentNodes;
       });
 
@@ -648,7 +652,7 @@ function TaskGraphFlow({
                 const found = oldPositions.find((op) => op.id === cn.id);
                 return found ? { ...cn, position: { ...found.position } } : cn;
               });
-              savePositions(updated);
+              savePositions(updated, projectId);
               return updated;
             });
           },
@@ -658,7 +662,7 @@ function TaskGraphFlow({
                 const found = newPositions.find((np) => np.id === cn.id);
                 return found ? { ...cn, position: { ...found.position } } : cn;
               });
-              savePositions(updated);
+              savePositions(updated, projectId);
               return updated;
             });
           },
@@ -667,12 +671,12 @@ function TaskGraphFlow({
 
       dragStartPositionsRef.current.clear();
     },
-    [tasks, pushAction, setNodes],
+    [tasks, pushAction, setNodes, projectId],
   );
 
   // Update nodes and edges while respecting user position preference
   useEffect(() => {
-    const savedPositions = getSavedPositions();
+    const savedPositions = getSavedPositions(projectId);
     setNodes((prevNodes) => {
       const currentPosMap = new Map<string, { x: number; y: number }>();
       for (const pn of prevNodes) {
@@ -908,7 +912,7 @@ function TaskGraphFlow({
       criticalEdgeIds,
     );
     setNodes(layout.nodes as Node[]);
-    savePositions(layout.nodes as Node[]);
+    savePositions(layout.nodes as Node[], projectId);
 
     const customEdges = layout.edges.map((e) => {
       const rel = relations.find((r) => r.id === e.id);
@@ -941,6 +945,7 @@ function TaskGraphFlow({
             const found = prevPositions.find((p) => p.id === n.id);
             return found ? { ...n, position: found.position } : n;
           }),
+          projectId,
         );
         setTimeout(() => {
           fitView({ duration: 300, padding: 0.15 });
@@ -965,6 +970,7 @@ function TaskGraphFlow({
     setNodes,
     setEdges,
     fitView,
+    projectId,
   ]);
 
   // Quick task actions
@@ -972,6 +978,7 @@ function TaskGraphFlow({
     const res = await dataAdapter.createTask({
       title,
       status: 'TODO',
+      projectId: projectId || null,
     });
     if (res.success && res.data?.id) {
       const createdId = res.data.id;
@@ -1025,7 +1032,7 @@ function TaskGraphFlow({
     const res = await dataAdapter.createTask({
       title,
       parentId: subtaskParentTask.id,
-      projectId: subtaskParentTask.projectId,
+      projectId: subtaskParentTask.projectId || projectId || null,
       status: 'TODO',
     });
     if (res.success && res.data?.id) {
@@ -1170,7 +1177,7 @@ function TaskGraphFlow({
     const createRes = await dataAdapter.createTask({
       title,
       status: 'TODO',
-      projectId: parentTask.projectId,
+      projectId: parentTask.projectId || projectId || null,
     });
 
     if (!createRes.success || !createRes.data?.id) {
@@ -1181,11 +1188,12 @@ function TaskGraphFlow({
     const newTaskId = createRes.data.id;
 
     // Record position for the new node
-    const posMap = getSavedPositions();
+    const posMap = getSavedPositions(projectId);
     posMap[newTaskId] = { x: Math.round(targetX), y: Math.round(targetY) };
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem(POSITIONS_STORAGE_KEY, JSON.stringify(posMap));
+        const key = projectId ? `task_graph_user_node_positions_${projectId}` : POSITIONS_STORAGE_KEY;
+        localStorage.setItem(key, JSON.stringify(posMap));
       } catch {}
     }
 

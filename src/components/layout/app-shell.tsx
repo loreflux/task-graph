@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { DetailDrawer } from './detail-drawer';
@@ -22,6 +23,7 @@ export function AppShell({
   count,
   onRefresh,
 }: AppShellProps) {
+  const pathname = usePathname();
   const {
     setCurrentView,
     toggleCommandPalette,
@@ -30,6 +32,11 @@ export function AppShell({
     isMobileSidebarOpen,
     setMobileSidebarOpen,
   } = useUIStore();
+
+  // Close task detail drawer automatically when leaving to another route
+  useEffect(() => {
+    closeDrawer();
+  }, [pathname, closeDrawer]);
 
   // Keyboard shortcut listener (§47)
   useEffect(() => {

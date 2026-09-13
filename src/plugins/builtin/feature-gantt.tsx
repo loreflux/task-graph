@@ -79,10 +79,10 @@ export function GanttChartComponent({
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center rounded-lg border border-zinc-800 bg-zinc-900/60 p-1 text-xs">
+          <div className="flex items-center rounded-lg border border-zinc-800 bg-zinc-900/60 p-1 text-xs shrink-0 whitespace-nowrap">
             <button
               onClick={() => setFilter('ALL')}
-              className={`rounded px-2.5 py-1 ${
+              className={`rounded px-2.5 py-1 transition whitespace-nowrap shrink-0 ${
                 filter === 'ALL' ? 'bg-zinc-800 text-white font-medium' : 'text-zinc-400'
               }`}
             >
@@ -90,7 +90,7 @@ export function GanttChartComponent({
             </button>
             <button
               onClick={() => setFilter('ACTIVE')}
-              className={`rounded px-2.5 py-1 ${
+              className={`rounded px-2.5 py-1 transition whitespace-nowrap shrink-0 ${
                 filter === 'ACTIVE' ? 'bg-zinc-800 text-white font-medium' : 'text-zinc-400'
               }`}
             >
@@ -98,7 +98,7 @@ export function GanttChartComponent({
             </button>
             <button
               onClick={() => setFilter('DONE')}
-              className={`rounded px-2.5 py-1 ${
+              className={`rounded px-2.5 py-1 transition whitespace-nowrap shrink-0 ${
                 filter === 'DONE' ? 'bg-zinc-800 text-white font-medium' : 'text-zinc-400'
               }`}
             >

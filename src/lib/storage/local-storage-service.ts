@@ -422,8 +422,12 @@ export const localStorageService = {
   // -------------------------------------------------------------
   // Projects
   // -------------------------------------------------------------
-  getProjects(): Project[] {
-    return this.getStoredProjects().sort(
+  getProjects(includeArchived = false): Project[] {
+    let list = this.getStoredProjects();
+    if (!includeArchived) {
+      list = list.filter((p) => !p.isArchived);
+    }
+    return list.sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
   },
@@ -442,6 +446,7 @@ export const localStorageService = {
       name: input.name,
       description: input.description ?? null,
       color: input.color || '#3b82f6',
+      isArchived: input.isArchived ?? false,
       createdAt: now,
       updatedAt: now,
     };
@@ -466,15 +471,28 @@ export const localStorageService = {
     return all[idx];
   },
 
-  deleteProject(id: string): void {
+  archiveProject(id: string, archive = true): Project {
+    return this.updateProject(id, { isArchived: archive });
+  },
+
+  deleteProject(id: string, deleteTasks = false): void {
     const all = this.getStoredProjects().filter((p) => p.id !== id);
     this.saveStoredProjects(all);
 
-    // Unlink tasks
-    const tasks = this.getStoredTasks();
-    for (const t of tasks) {
-      if (t.projectId === id) {
-        t.projectId = null;
+    // Either delete or unlink tasks
+    let tasks = this.getStoredTasks();
+    if (deleteTasks) {
+      const taskIdsToDelete = new Set(tasks.filter((t) => t.projectId === id).map((t) => t.id));
+      tasks = tasks.filter((t) => t.projectId !== id);
+      const rels = this.getStoredRelations().filter(
+        (r) => !taskIdsToDelete.has(r.sourceTaskId) && !taskIdsToDelete.has(r.targetTaskId),
+      );
+      this.saveStoredRelations(rels);
+    } else {
+      for (const t of tasks) {
+        if (t.projectId === id) {
+          t.projectId = null;
+        }
       }
     }
     this.saveStoredTasks(tasks);

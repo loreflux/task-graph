@@ -30,12 +30,12 @@ export function Sidebar() {
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
 
   const loadProjects = () => {
-    dataAdapter.getProjects().then(setProjects).catch(console.error);
+    dataAdapter.getProjects(false).then(setProjects).catch(console.error);
   };
 
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, [pathname]);
 
   const handleConfirmCreateProject = async (name: string) => {
     const res = await dataAdapter.createProject({ name });

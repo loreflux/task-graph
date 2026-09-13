@@ -127,17 +127,17 @@ export function BackupExportComponent({
   };
 
   return (
-    <div className="flex flex-col rounded-2xl border border-zinc-800 bg-zinc-950 p-6 text-zinc-100 shadow-2xl max-w-xl w-full mx-auto">
+    <div className="flex flex-col rounded-2xl border border-zinc-800 bg-zinc-950 p-6 text-zinc-100 shadow-2xl max-w-2xl w-full mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
         <div className="flex items-center gap-2">
-          <Share2 className="h-5 w-5 text-emerald-400" />
-          <h3 className="text-sm font-bold">数据导入导出与备份中心</h3>
+          <Share2 className="h-5 w-5 text-emerald-400 shrink-0" />
+          <h3 className="text-sm font-bold whitespace-nowrap">数据导入导出与备份中心</h3>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="rounded p-1 text-zinc-400 hover:bg-zinc-900 hover:text-white"
+            className="rounded p-1 text-zinc-400 hover:bg-zinc-900 hover:text-white shrink-0"
           >
             <X className="h-4 w-4" />
           </button>
@@ -146,33 +146,34 @@ export function BackupExportComponent({
 
       <div className="mt-4 space-y-4 text-xs">
         {/* Export JSON Card */}
-        <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-          <div>
-            <span className="font-semibold text-zinc-200">全量数据 JSON 备份导出</span>
-            <p className="mt-0.5 text-zinc-400">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <div className="min-w-0 flex-1">
+            <span className="font-semibold text-zinc-200 whitespace-nowrap">全量数据 JSON 备份导出</span>
+            <p className="mt-1 text-zinc-400 leading-relaxed">
               打包包含所有项目、任务、时序与拓扑依赖关系，便于异地迁移与灾备保存。
             </p>
           </div>
           <button
+            type="button"
             onClick={handleDownloadJSON}
-            className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 font-medium text-white transition hover:bg-emerald-500 shadow-sm"
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 font-medium text-white transition hover:bg-emerald-500 shadow-sm shrink-0 whitespace-nowrap"
           >
-            <Download className="h-4 w-4" />
-            <span>下载备份</span>
+            <Download className="h-4 w-4 shrink-0" />
+            <span className="whitespace-nowrap">下载备份</span>
           </button>
         </div>
 
         {/* Import JSON Card */}
-        <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-          <div>
-            <span className="font-semibold text-zinc-200">恢复与导入 JSON 备份</span>
-            <p className="mt-0.5 text-zinc-400">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <div className="min-w-0 flex-1">
+            <span className="font-semibold text-zinc-200 whitespace-nowrap">恢复与导入 JSON 备份</span>
+            <p className="mt-1 text-zinc-400 leading-relaxed">
               从本地 JSON 文件中恢复任务拓扑结构，自动导入当前存储引擎。
             </p>
           </div>
-          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 hover:bg-zinc-700">
-            <Upload className="h-4 w-4" />
-            <span>选择文件</span>
+          <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-800 px-3.5 py-1.5 font-medium text-zinc-200 hover:bg-zinc-700 shrink-0 whitespace-nowrap">
+            <Upload className="h-4 w-4 shrink-0" />
+            <span className="whitespace-nowrap">选择文件</span>
             <input
               type="file"
               accept=".json"
@@ -183,52 +184,54 @@ export function BackupExportComponent({
         </div>
 
         {/* Export Mermaid Diagram Card */}
-        <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-          <div>
-            <span className="font-semibold text-zinc-200">Mermaid 拓扑图代码导出</span>
-            <p className="mt-0.5 text-zinc-400">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <div className="min-w-0 flex-1">
+            <span className="font-semibold text-zinc-200 whitespace-nowrap">Mermaid 拓扑图代码导出</span>
+            <p className="mt-1 text-zinc-400 leading-relaxed">
               复制标准 Mermaid 语法代码，可直接粘贴至 Notion、GitHub 或 Markdown 笔记中渲染。
             </p>
           </div>
           <button
+            type="button"
             onClick={() => handleCopy(generateMermaid(), 'mermaid')}
-            className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-zinc-200 hover:bg-zinc-800"
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-1.5 text-zinc-200 hover:bg-zinc-800 shrink-0 whitespace-nowrap"
           >
             {copiedType === 'mermaid' ? (
               <>
-                <Check className="h-3.5 w-3.5 text-green-400" />
-                <span className="text-green-400">已复制</span>
+                <Check className="h-3.5 w-3.5 text-green-400 shrink-0" />
+                <span className="text-green-400 whitespace-nowrap">已复制</span>
               </>
             ) : (
               <>
-                <Copy className="h-3.5 w-3.5" />
-                <span>复制代码</span>
+                <Copy className="h-3.5 w-3.5 shrink-0" />
+                <span className="whitespace-nowrap">复制代码</span>
               </>
             )}
           </button>
         </div>
 
         {/* Export Markdown Checklist Card */}
-        <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-          <div>
-            <span className="font-semibold text-zinc-200">Markdown 待办任务清单</span>
-            <p className="mt-0.5 text-zinc-400">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <div className="min-w-0 flex-1">
+            <span className="font-semibold text-zinc-200 whitespace-nowrap">Markdown 待办任务清单</span>
+            <p className="mt-1 text-zinc-400 leading-relaxed">
               快速导出带层级与完成状态勾选框的纯文本 Markdown 任务报告。
             </p>
           </div>
           <button
+            type="button"
             onClick={() => handleCopy(generateMarkdown(), 'md')}
-            className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-zinc-200 hover:bg-zinc-800"
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-1.5 text-zinc-200 hover:bg-zinc-800 shrink-0 whitespace-nowrap"
           >
             {copiedType === 'md' ? (
               <>
-                <Check className="h-3.5 w-3.5 text-green-400" />
-                <span className="text-green-400">已复制</span>
+                <Check className="h-3.5 w-3.5 text-green-400 shrink-0" />
+                <span className="text-green-400 whitespace-nowrap">已复制</span>
               </>
             ) : (
               <>
-                <FileText className="h-3.5 w-3.5" />
-                <span>复制文本</span>
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <span className="whitespace-nowrap">复制文本</span>
               </>
             )}
           </button>

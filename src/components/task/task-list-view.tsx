@@ -5,7 +5,8 @@ import type { Task } from '@/types';
 import { TaskItem } from './task-item';
 import { TaskQuickCreate } from './task-quick-create';
 import { BatchActionsBar } from './batch-actions-bar';
-import { Search, Filter, CheckCircle2 } from 'lucide-react';
+import { useSelectionStore } from '@/stores/selection-store';
+import { Search, Filter, CheckCircle2, Check, Minus } from 'lucide-react';
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -21,6 +22,7 @@ export function TaskListView({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
+  const { selectedIds, selectMany, clearSelection } = useSelectionStore();
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -47,10 +49,26 @@ export function TaskListView({
     });
   }, [tasks, search, statusFilter, priorityFilter]);
 
+  const filteredTaskIds = useMemo(() => filteredTasks.map((t) => t.id), [filteredTasks]);
+  const selectedCountInView = useMemo(
+    () => filteredTaskIds.filter((id) => selectedIds.has(id)).length,
+    [filteredTaskIds, selectedIds],
+  );
+  const isAllSelected = filteredTasks.length > 0 && selectedCountInView === filteredTasks.length;
+  const isPartiallySelected = selectedCountInView > 0 && selectedCountInView < filteredTasks.length;
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      clearSelection();
+    } else {
+      selectMany(filteredTaskIds);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col bg-zinc-950 p-6">
       {/* Top Controls: Search + Filter + Quick Create */}
-      <div className="mb-6 space-y-4">
+      <div className="mb-4 space-y-4">
         <TaskQuickCreate
           projectId={projectId}
           defaultStatus="TODO"
@@ -100,6 +118,48 @@ export function TaskListView({
         </div>
       </div>
 
+      {/* Select All Bar */}
+      {filteredTasks.length > 0 && (
+        <div className="mb-2 flex items-center justify-between px-2 text-xs text-zinc-400 select-none">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleToggleSelectAll}
+              className="flex items-center gap-2 rounded px-2 py-1 transition hover:bg-zinc-900 hover:text-zinc-200"
+            >
+              <div
+                className={`flex h-4 w-4 items-center justify-center rounded border transition ${
+                  isAllSelected
+                    ? 'border-blue-500 bg-blue-600 text-white'
+                    : isPartiallySelected
+                      ? 'border-blue-500 bg-blue-600/30 text-blue-400'
+                      : 'border-zinc-700 bg-zinc-900/80 hover:border-zinc-500'
+                }`}
+              >
+                {isAllSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                {isPartiallySelected && <Minus className="h-3 w-3 stroke-[3]" />}
+              </div>
+              <span className="font-medium">
+                {isAllSelected ? '取消全选' : '全选'}
+              </span>
+            </button>
+            <span className="text-[11px] text-zinc-500">
+              (共 {filteredTasks.length} 项{selectedCountInView > 0 ? `，已选中 ${selectedCountInView} 项` : ''})
+            </span>
+          </div>
+
+          {selectedCountInView > 0 && (
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="text-[11px] text-zinc-500 transition hover:text-zinc-300"
+            >
+              清空选中
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Task List items */}
       <div className="flex-1 overflow-y-auto rounded-lg border border-zinc-900 bg-zinc-900/20">
         {filteredTasks.length === 0 ? (
@@ -117,7 +177,7 @@ export function TaskListView({
         )}
       </div>
 
-      <BatchActionsBar onRefresh={onRefresh} />
+      <BatchActionsBar allTaskIds={filteredTaskIds} onRefresh={onRefresh} />
     </div>
   );
 }

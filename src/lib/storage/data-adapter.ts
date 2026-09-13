@@ -324,16 +324,16 @@ export const dataAdapter = {
   // -------------------------------------------------------------
   // Projects
   // -------------------------------------------------------------
-  async getProjects(): Promise<Project[]> {
+  async getProjects(includeArchived = false): Promise<Project[]> {
     if (isLocalMode()) {
-      return localStorageService.getProjects();
+      return localStorageService.getProjects(includeArchived);
     }
-    if (cache.projects && Date.now() - cache.projects.timestamp < CACHE_TTL_MS) {
+    if (!includeArchived && cache.projects && Date.now() - cache.projects.timestamp < CACHE_TTL_MS) {
       return cache.projects.data;
     }
     const res = await serverProjectQueries.getProjects();
     cache.projects = { data: res, timestamp: Date.now() };
-    return res;
+    return includeArchived ? res : res.filter((p: any) => !p.isArchived);
   },
 
   async getProjectById(id: string): Promise<Project | null> {
@@ -369,11 +369,24 @@ export const dataAdapter = {
     return serverProjectActions.updateProjectAction(id, input);
   },
 
-  async deleteProject(id: string): Promise<{ success: boolean; error?: string }> {
+  async archiveProject(id: string, archive = true): Promise<{ success: boolean; data?: Project; error?: string }> {
     cache.clear();
     if (isLocalMode()) {
       try {
-        localStorageService.deleteProject(id);
+        const p = localStorageService.archiveProject(id, archive);
+        return { success: true, data: p };
+      } catch (err: any) {
+        return { success: false, error: err.message };
+      }
+    }
+    return serverProjectActions.archiveProjectAction(id, archive);
+  },
+
+  async deleteProject(id: string, deleteTasks = false): Promise<{ success: boolean; error?: string }> {
+    cache.clear();
+    if (isLocalMode()) {
+      try {
+        localStorageService.deleteProject(id, deleteTasks);
         return { success: true };
       } catch (err: any) {
         return { success: false, error: err.message };
